@@ -1,0 +1,6 @@
+plane1,147,boeing737,800,3600
+plane2,147,boeing737,800,3600
+plane3,147,boeing737,800,3600
+plane4,147,boeing737,800,3600
+plane5,147,boeing737,800,3600
+plane6,147,boeing737,800,3600
