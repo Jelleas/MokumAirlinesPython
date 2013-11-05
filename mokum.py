@@ -216,7 +216,7 @@ class Simulation(object):
                 
                 for trip in trips:
                     startTime = trip.getStartTime()
-                    endTime = startTime + plane.calcTimeTakenOverTrip(trip)
+                    endTime = startTime + plane.calcTimeInFlight(trip)
                     
                     if startTime < minTime:
                         startTrip = trip
@@ -559,8 +559,11 @@ class Plane(object):
     def getHome(self):
         return self.home
     
+    def calcTimeInFlight(self, trip):
+        return trip.getDistance() / (self.speed / 60.0)
+    
     def calcTimeTakenOverTrip(self, trip):
-        time = trip.getDistance() / (self.speed / 60.0) + waitAtAirport
+        time = self.calcTimeInFlight(trip) + waitAtAirport
         if trip.getRefuel():
             time += waitAtRefuel
         return int(time + 0.5)
