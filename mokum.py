@@ -51,6 +51,7 @@ class Simulation(object):
     - Detours are impossible.
     - Once a frame has been created, it cannot be undone and/or recreated. 
     - The simulation cannot be changed in runtime.
+    - A plane cannot be stalled in air to wait for the no fly zone to pass.
     """
     
     def __init__(self, dimensions):
