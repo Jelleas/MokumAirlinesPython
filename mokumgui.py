@@ -1,4 +1,5 @@
 import Tkinter as tk
+import datetime as dt
 #import threading
 from mokum import *
 
@@ -43,7 +44,7 @@ class SimulationGUI(tk.Frame):
         if self.time < self.endTime:
             self.drawSimulationAt(self.time)
             self.time += 1
-            self.after(10, self.run)
+            self.after(1, self.run)
 
     def createWidgets(self):
         self.quitButton = tk.Button(self, text = 'Quit', command = self.quit)
@@ -88,12 +89,24 @@ class SimulationGUI(tk.Frame):
         self.timeLabel.update()
             
 image = tk.PhotoImage(file = "resources/europe.gif")
+start = dt.datetime.now()
 simulation = Simulation((500, 500))
+
+simulation.preSimulation()
+end = dt.datetime.now()
+print "Time taken over presim", end - start
+ 
+start = dt.datetime.now()
+simulation.run()
+end = dt.datetime.now()
+ 
+print "Time taken over entire sim", end - start
+
 app = SimulationGUI(simulation, master = master)
 app.master.title('Mokum Airlines')
 app.after(100, app.run)
 app.start()
-   
+
 #simThread = threading.Thread(target = app.runSimulation)
 #simThread.deamon = True
 #simThread.start()

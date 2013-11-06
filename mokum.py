@@ -77,7 +77,7 @@ class Simulation(object):
         for time in range(self.startTime, self.endTime):
             self.getSimulationLogAt(time) # automatically creates a simulationLog if it does not exist.
             for plane in planes:
-                print plane, "time", time, plane.getCoordsAt(time), plane.getFuelAt(time)
+                plane, "time", time, plane.getCoordsAt(time), plane.getFuelAt(time)
 
     def getSimulationLogAt(self, time):
         """
@@ -112,6 +112,63 @@ class Simulation(object):
     
     def getEndTime(self):
         return self.endTime
+    
+    def preSimulation(self):
+        self._testPassengers()
+        self._testFuel()
+        self._testTrips()
+        
+    def _testPassengers(self):
+        trips = self.flightPlan.getTrips()
+        connectionToPassenger = {}
+        
+        # get all connections which also have a trip.
+        for trip in trips:
+            connection = trip.getConnection()
+            connectionToPassenger[connection] = connection.getPotentialPassengersAt(self.startTime)
+        
+        # calculate number of passengers taken from connections
+        for trip in trips:
+            connection = trip.getConnection()
+            connectionToPassenger[connection] -= trip.getNumPassengers()
+            if connectionToPassenger[connection] < 0:
+                raise ValueError("Illegal passenger substraction in connection: " + str(connection) +\
+                                  ", tried to substract " + str(trip.getNumPassengers()) +\
+                                   " from " + str(connectionToPassenger[connection]))
+    
+    def _testFuel(self):
+        """" for all planes, calculate fuel after each trip. Check if fuel <0 at any point """
+        for plane in self.flightPlan.getPlanes():
+            fuel = plane.getFuelAt(self.startTime)
+            for trip in plane.getSortedTrips(): #TODO order trips!
+                fuel -= trip.getDistance()
+                if fuel < 0:
+                    raise ValueError("Fuel reached <0 on trip:  " + str(trip))
+                
+                if trip.getRefuel():
+                    fuel = plane.getFuelAt(0)
+    
+    def _testTrips(self):
+        planes = self.flightPlan.getPlanes()
+        for plane in planes:
+            trips = plane.getTrips()
+            tripStartEnd = []            
+        
+            for trip in trips:
+                start = trip.getStartTime()
+                end = start + plane.calcTimeTakenOverTrip(trip)
+                tripStartEnd += [(start, end)]
+            
+            allTripIndexes = range(len(tripStartEnd))
+            for i in allTripIndexes:
+                start, end = tripStartEnd[i]
+                restTripIndexes = allTripIndexes
+                del restTripIndexes[i]
+                
+                for j in restTripIndexes:
+                    startCheck, endCheck = tripStartEnd[j]
+                    if startCheck <= start <= endCheck or startCheck <= end <= endCheck:
+                        raise ValueError("Trip collision occured with plane: " + str(plane))
     
     def _loadData(self):
         locationsFile = open(locationsFilePath)
@@ -269,7 +326,7 @@ class SimulationLog(object):
     
     def __init__(self, simulation, time, planeToLog, connectionToLog):
         self.simulation = simulation
-        self.time = int(time)
+        self.time = time
         self.planeToLog = planeToLog
         self.connectionToLog = connectionToLog
         
@@ -340,6 +397,13 @@ class FlightPlan(object):
             planeToLog[plane] = plane.getPlaneLogAt(time)
         return planeToLog
 
+    def getTrips(self):
+        planes = self.getPlanes()
+        trips = []
+        for plane in planes:
+            trips += plane.getTrips()
+        return trips
+
 class Plane(object):
     """
     Representation of a plane, which can travel over planned trips.
@@ -385,7 +449,6 @@ class Plane(object):
         :returns: log containing the data of the plane at the requested time.
         :rtype: PlaneLog
         """
-        time = int(time)
         if time < 0:
             raise ValueError("This is not the delorean, plane: " + str(self) + " cannot go to time: " + str(time))     
         
@@ -400,6 +463,8 @@ class Plane(object):
         :returns: log containing the data of the plane at the requested time.
         :rtype: PlaneLog
         """
+        
+        time = int(time)
         
         planelog = self.timeToPlaneLog.get(time, None)
         
@@ -547,6 +612,10 @@ class Plane(object):
     def getTrips(self):
         return self.trips.values()
     
+    def getSortedTrips(self):
+        startTimes = sorted(self.trips.keys())
+        return [self.trips[startTime] for startTime in startTimes]
+    
     def getName(self):
         return self.name
 
@@ -566,7 +635,7 @@ class Plane(object):
         time = self.calcTimeInFlight(trip) + waitAtAirport
         if trip.getRefuel():
             time += waitAtRefuel
-        return int(time + 0.5)
+        return time # int(time + 0.5)
 
 class PlaneLog(object):
     """
@@ -582,7 +651,7 @@ class PlaneLog(object):
     
     def __init__(self, plane, time, fuel, coords, trip, landTime = -1):
         self.plane = plane
-        self.time = int(time)
+        self.time = time
         self.fuel = fuel # cutoff to int at end of trips.
         self.coords = coords
         self.trip = trip
@@ -722,6 +791,7 @@ class Connection(object):
                 break  
             i += 1
         return self.timeToConnectionLog[timeKeys[i]]
+    
 #    def getPassengerKilometer(self):
 #        return self.potenialPassengers * self.distance
 
