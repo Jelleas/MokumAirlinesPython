@@ -474,7 +474,7 @@ class Plane(object):
                 startTime = min(self.trips.keys())
                 trip = self.trips[startTime]
                 
-                if startTime == time:
+                if startTime < 1:
                     connection = trip.getConnection()
                     
                     # substract passengers boarding plane from possible passengers on connection.
@@ -486,8 +486,8 @@ class Plane(object):
         # recursive step       
         elif planelog == None:        
             oldPlaneLog = self._getPlaneLogAtRec(time - 1)        
+            newTrip = self._getTripWithStartBetween(time, time + 1)
             
-            newTrip = self.trips.get(time, None)
             if newTrip == None:
                 self.timeToPlaneLog[time] = self._createNextPlaneLog(oldPlaneLog)
             else:
@@ -603,6 +603,13 @@ class Plane(object):
         
         return True
          
+    def _getTripWithStartBetween(self, lowerbound, upperbound):
+        startTimes = self.trips.keys()
+        for startTime in startTimes:
+            if lowerbound <= startTime < upperbound:
+                return self.trips[startTime]
+        return None
+         
     def getMaxPassengers(self):
         return self.maxPassengers
                 
@@ -677,7 +684,7 @@ class PlaneLog(object):
 
 class Trip(object):
     def __init__(self, startTime, connection, numPassengers, refuel):
-        self.startTime = int(startTime)
+        self.startTime = float(startTime)
         self.connection = connection
         self.refuel = bool(refuel)
         self.numPassengers = int(numPassengers)

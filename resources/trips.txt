@@ -1,12 +1,12 @@
-361,plane1,Amsterdam,Athene,31,1
+361.33,plane1,Amsterdam,Athene,31,1
 400,plane2,Amsterdam,Warsawa,70,0
 361,plane3,Amsterdam,Madrid,23,0
 420,plane4,Lissabon,Amsterdam,77,1
 361,plane5,Parijs,Amsterdam,77,1
-0,plane6,Amsterdam,Berlijn,86,0
+0.3,plane6,Amsterdam,Berlijn,86,0
 700,plane1,Athene,Amsterdam,0,0
 800,plane3,Madrid,Amsterdam,0,0
 750,plane2,Warsawa,Amsterdam,0,0
 850,plane4,Amsterdam,Lissabon,0,0
 700,plane5,Amsterdam,Parijs,0,0
-700,plane6,Berlijn,Amsterdam,0,0
+700.352,plane6,Berlijn,Amsterdam,0,0
