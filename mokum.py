@@ -331,34 +331,30 @@ class Simulation(object):
         
         for tripName, startTime, planeName, origin, destination, refuel in tripsList:
             plane = nameToPlane.get(planeName, None)
-            
-            if plane != None:
-                startLocation = self.map.getLocationByName(origin)
-                endLocation = self.map.getLocationByName(destination)
-                
-                if startLocation != None and endLocation != None:
-                    connection = startLocation.getConnection(endLocation)
-                    
-                    if connection != None:
-                
-                        # easier to ask for forgiveness, than to ask permission
-                        try:
-                            unknownTripNames.remove(tripName)
-                        except ValueError:
-                            pass
-                        
-                        if tripName in knownTripNames:
-                            raise ValueError("Duplicate trip name in " + tripsFilePath)
-                        
-                        knownTripNames.append(tripName)
-                        passengers = tripNameToPassengers.get(tripName, {})
-                        plane.addTrip(Trip(tripName, startTime, connection, passengers, int(refuel)))
-                    else:
-                        raise ValueError("Connection between: " + str(origin) + ", " + str(destination) + " does not exist.")
-                else:
-                    raise ValueError("Either one of the following locations is unknown in map: " + str(origin) + ", " + str(destination))
-            else:
+            if plane == None:
                 raise ValueError("Unknown plane: " + str(planeName) + " in " + tripsFilePath)
+        
+            startLocation = self.map.getLocationByName(origin)
+            endLocation = self.map.getLocationByName(destination)
+            if startLocation == None or endLocation == None:
+                raise ValueError("Either one of the following locations is unknown in map: " + str(origin) + ", " + str(destination))
+                
+            connection = startLocation.getConnection(endLocation)
+            if connection == None:
+                raise ValueError("Connection between: " + str(origin) + ", " + str(destination) + " does not exist.")
+            
+            # easier to ask for forgiveness, than to ask permission
+            try:
+                unknownTripNames.remove(tripName)
+            except ValueError:
+                pass
+            
+            if tripName in knownTripNames:
+                raise ValueError("Duplicate trip name in " + tripsFilePath)
+            
+            knownTripNames.append(tripName)
+            passengers = tripNameToPassengers.get(tripName, {})
+            plane.addTrip(Trip(tripName, startTime, connection, passengers, int(refuel)))
         
         if len(unknownTripNames) > 0:
             raise ValueError("Unknown trip names: " + str(unknownTripNames) + " in " + passengersOnTripFilePath)
@@ -661,7 +657,7 @@ class Plane(object):
             # adjust fuel spend to match actual distance travelled, thus not 'wasting' fuel.
             if self._isBetween(oldStartCoords, newCoords, oldEndCoords):
                 newCoords = oldEndCoords
-                newFuel = self.getPlaneLogAt(oldTrip.getStartTime()).getFuel() - oldConnection.getDistance()
+                newFuel = self.getFuelAt(oldTrip.getStartTime()) - oldConnection.getDistance()
                 hasLanded = True
             else:
                 newFuel = oldPlaneLog.getFuel() - speed
