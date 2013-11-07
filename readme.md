@@ -12,7 +12,7 @@ Note the no-gui variant does not produce much output, but you can use it for deb
 
 <h3> Filestructures </h3>
 
-%{color:red}WARNING do not end a file with a blank line!%
+WARNING do not end a file with a blank line!
 
 <h5> config.txt </h5>
 This where you put the configuration of the simulation. Currently there are five options: 
@@ -54,4 +54,4 @@ You might have noticed the lack of passengers in trips. That is because a trip d
 
 *tripName,numPassengers,endLocation
 
-------, anyone for a game of hangman? Quick clarification: numPassengers is the number of passengers that hop on the plane at the start of the trip, endLocation = the destination of those passengers. Please note that if the plane does not pass the destination the passengers want to go to. They will remain in the plane.
+Anyone for a game of hangman? I got a word with six letters. Quick clarification: numPassengers is the number of passengers that hop on the plane at the start of the trip, endLocation = the destination of those passengers. Please note that if the plane does not pass the destination the passengers want to go to. They will remain in the plane.
