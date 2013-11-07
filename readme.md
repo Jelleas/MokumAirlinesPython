@@ -52,6 +52,6 @@ Syntax, syntax, syntax! The name of the plane here determines the name in the ot
 <h5> passengersontrip.txt </h5>
 You might have noticed the lack of passengers in trips. That is because a trip does not determine the passsengers. For instance you might have a trip from Amsterdam to Athene while stopping in Berlin on the way. You could then have passengers hop on in Amsterdam for Athene, but the first trip the plane is going to undertake is to Berlin. The simulation handles this by keeping a different file containing the number of passengers hopping on for a destination on each trip. passengersontrip.txt is that file! How does the representation work?
 
-*tripName,numPassengers,endLocation
+* tripName,numPassengers,endLocation
 
 Anyone for a game of hangman? I got a word with six letters. Quick clarification: numPassengers is the number of passengers that hop on the plane at the start of the trip, endLocation = the destination of those passengers. Please note that if the plane does not pass the destination the passengers want to go to. They will remain in the plane.
