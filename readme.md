@@ -1,6 +1,6 @@
 <h3> How To Run </h3>
 
-- Install python 2.7.
+- Install python 2.7, do not install 3.x!
 
 With Graphical User Interface (GUI).
 - run mokumgui.py by opening it in Idle for instance, or by typing python mokumgui.py in cmd or console.
