@@ -1,11 +1,13 @@
 import math
 
-configFilePath = "resources/config.txt"
-locationsFilePath = "resources/locations.txt"
-connectionsFilePath = "resources/connections.txt"
-tripsFilePath = "resources/trips.txt"
-planesFilePath = "resources/planes.txt"
-passengersFilePath = "resources/passengers.txt"
+resourcesFilePath = "resources"
+configFilePath = resourcesFilePath + "/config.txt"
+locationsFilePath = resourcesFilePath + "/locations.txt"
+connectionsFilePath = resourcesFilePath + "/connections.txt"
+tripsFilePath = resourcesFilePath + "/trips.txt"
+planesFilePath = resourcesFilePath + "/planes.txt"
+passengersFilePath = resourcesFilePath + "/passengers.txt"
+passengersOnTripFilePath = resourcesFilePath + "/passengersontrip.txt"
 
 waitAtAirport = 60
 waitAtRefuel = 60
@@ -43,12 +45,12 @@ class Simulation(object):
     - The plane passes home (specified in config.txt) at least once. (checked)
     - A plane does not land or take off between 2.00 - 6.00 am. (checked)
     - A plane can carry up to maximum number of passengers (specified in planes.txt). (checked)
-    - A plane can fly up to maximum number of kilometers based on fuel (specified in planes.txt). (checked in runtime)
-    - A plane must wait at least 1 hour after landing. (checked in runtime)
-    - A plane must wait one extra hour if the plane refuels. (checked in runtime)
+    - A plane can fly up to maximum number of kilometers based on fuel (specified in planes.txt). 
+    (checked in runtime or pre simulation)
+    - A plane must wait at least 1 hour after landing. (checked in runtime or pre-simulation)
+    - A plane must wait one extra hour if the plane refuels. (checked in runtime or pre-simulation)
     
     Limitations:
-    - Detours are impossible.
     - Once a frame has been created, it cannot be undone and/or recreated. 
     - The simulation cannot be changed in runtime.
     - A plane cannot be stalled in air to wait for the no fly zone to pass.
@@ -68,6 +70,8 @@ class Simulation(object):
         self._loadData()
         if self.home == None:
             raise ValueError("No home location set in config.txt.")
+        
+        self._testPlanes() # mandatory test, as the simulation will not check for this.
         
     def run(self):
         """
@@ -90,7 +94,7 @@ class Simulation(object):
         :returns: log containing the data of the simulation at the requested time.
         :rtype: SimulationLog
         """
-        
+        time = int(time)
         if time > self.endTime:
             raise ValueError("Requesting simulationLog at time: " + str(time) +\
                               " which is beyond endtime: " + str(self.endTime))
@@ -113,6 +117,9 @@ class Simulation(object):
     def getEndTime(self):
         return self.endTime
     
+    def getPlanes(self):
+        return self.flightPlan.getPlanes()
+    
     def preSimulation(self):
         self._testPassengers()
         self._testFuel()
@@ -124,147 +131,25 @@ class Simulation(object):
         
         # get all connections which also have a trip.
         for trip in trips:
-            connection = trip.getConnection()
-            connectionToPassenger[connection] = connection.getPotentialPassengersAt(self.startTime)
+            connections = trip.getPassengerConnections()
+            
+            for connection in connections:
+                connectionToPassenger[connection] = connection.getPotentialPassengersAt(self.startTime)
         
         # calculate number of passengers taken from connections
         for trip in trips:
-            connection = trip.getConnection()
-            connectionToPassenger[connection] -= trip.getNumPassengers()
-            if connectionToPassenger[connection] < 0:
-                raise ValueError("Illegal passenger substraction in connection: " + str(connection) +\
-                                  ", tried to substract " + str(trip.getNumPassengers()) +\
-                                   " from " + str(connectionToPassenger[connection]))
-    
-    def _testFuel(self):
-        """" for all planes, calculate fuel after each trip. Check if fuel <0 at any point """
-        for plane in self.flightPlan.getPlanes():
-            fuel = plane.getFuelAt(self.startTime)
-            for trip in plane.getSortedTrips(): #TODO order trips!
-                fuel -= trip.getDistance()
-                if fuel < 0:
-                    raise ValueError("Fuel reached <0 on trip:  " + str(trip))
-                
-                if trip.getRefuel():
-                    fuel = plane.getFuelAt(0)
-    
-    def _testTrips(self):
-        planes = self.flightPlan.getPlanes()
-        for plane in planes:
-            trips = plane.getTrips()
-            tripStartEnd = []            
-        
-            for trip in trips:
-                start = trip.getStartTime()
-                end = start + plane.calcTimeTakenOverTrip(trip)
-                tripStartEnd += [(start, end)]
+            connections = trip.getPassengerConnections()
             
-            allTripIndexes = range(len(tripStartEnd))
-            for i in allTripIndexes:
-                start, end = tripStartEnd[i]
-                restTripIndexes = allTripIndexes
-                del restTripIndexes[i]
+            for connection in connections:
+                connectionToPassenger[connection] -= trip.getNumPassengersTo(connection.getEndLocation())
                 
-                for j in restTripIndexes:
-                    startCheck, endCheck = tripStartEnd[j]
-                    if startCheck <= start <= endCheck or startCheck <= end <= endCheck:
-                        raise ValueError("Trip collision occured with plane: " + str(plane))
+                if connectionToPassenger[connection] < 0:
+                    raise ValueError("Illegal passenger subtraction in connection: " + str(connection) +\
+                                      ", tried to subtract " + str(trip.getNumPassengers()) +\
+                                       " from " + str(connectionToPassenger[connection]))
     
-    def _loadData(self):
-        locationsFile = open(locationsFilePath)
-        self._interpretLocations(locationsFile.read())
-        locationsFile.close()
-        
-        configFile = open(configFilePath)
-        self._interpretConfig(configFile.read())
-        configFile.close()
-        
-        connectionsFile = open(connectionsFilePath)
-        passengersFile = open(passengersFilePath)
-        self._interpretConnections(connectionsFile.read(), passengersFile.read())
-        connectionsFile.close()
-        passengersFile.close()
-        
-        planesFile = open(planesFilePath)
-        self._interpretPlanes(planesFile.read())
-        planesFile.close()
-        
-        tripsFile = open(tripsFilePath)
-        self._interpretTrips(tripsFile.read())
-        tripsFile.close()
-    
-    def _interpretConfig(self, configString):
-        configList = [line.split("=") for line in configString.split("\n")]
-        for setting, value in configList:
-            if setting == "starttime":
-                self.startTime = int(value)
-                
-            elif setting == "endtime":
-                self.endTime = int(value)
-                
-            elif setting == "noflystart":
-                self.noFlyStart = int(value)
-                
-            elif setting == "noflyend":
-                self.noFlyEnd = int(value)
-                
-            elif setting == "home":
-                location = self.map.getLocationByName(value)
-                if location != None:
-                    self.home = location
-                else:
-                    raise ValueError("Unknown location: " + value + " set as home in config.txt.")
-           
-    def _interpretLocations(self, locationsString):
-        locationsList = [line.split(",") for line in locationsString.split("\n")]
-        self.map.addLocations([Location(name, locationId, (x, y)) for x, y, locationId, name in locationsList])
-              
-    def _interpretConnections(self, connectionsString, passengersString):
-        connectionsList = [line.split(',') for line in connectionsString.split("\n")]
-        passengersList = [line.split(',') for line in passengersString.split("\n")]
-        
-        idToLocation = {}
-        for location in self.map.getLocations():
-            idToLocation[location.getId()] = location
-                    
-        for i in range(len(connectionsList)):
-            for j in range(len(connectionsList[i])):
-                startLocation = idToLocation[i]
-                endLocation = idToLocation[j]
-                if startLocation != endLocation:
-                    connection = Connection(startLocation, endLocation, connectionsList[i][j], passengersList[i][j])
-                    self.flightPlan.addConnection(connection)
-                    startLocation.addConnection(connection)
-
-    def _interpretPlanes(self, planesString):
-        planesList = [line.split(',') for line in planesString.split("\n")]        
-        self.flightPlan.addPlanes([Plane(name, maxPassengers, planeType, self.home, speed, flightRange)\
-                                    for name, maxPassengers, planeType, speed, flightRange in planesList])
-
-    def _interpretTrips(self, tripString):
-        tripsList = [line.split(',') for line in tripString.split("\n")]
-        
-        nameToPlane = {}
+    def _testPlanes(self):
         for plane in self.flightPlan.getPlanes():
-            nameToPlane[plane.getName()] = plane
-              
-        for startTime, planeName, origin, destination, numPassengers, refuel in tripsList:
-            plane = nameToPlane.get(planeName, None)
-            if plane != None:
-                startLocation = self.map.getLocationByName(origin)
-                endLocation = self.map.getLocationByName(destination)
-                if startLocation != None and endLocation != None:
-                    connection = startLocation.getConnection(endLocation)
-                    if connection != None:
-                        plane.addTrip(Trip(startTime, connection, numPassengers, int(refuel)))
-                    else:
-                        raise ValueError("Connection between: " + str(origin) + ", " + str(destination) + " does not exist.")
-                else:
-                    raise ValueError("Either one of the following locations is unknown in map: " + str(origin) + ", " + str(destination))
-            else:
-                raise ValueError("Unknown plane: " + str(planeName) + " in trips.txt.")
-            
-        for plane in nameToPlane.values():
             trips = plane.getTrips()
             if len(trips) > 0:
                 passedHome = False
@@ -307,6 +192,177 @@ class Simulation(object):
                 if maxTime > self.endTime:
                     raise ValueError("Plane: " + str(plane) + " started trip: " + str(endTrip) + " but this trip ends at: " +\
                                      str(maxTime) + " which is beyond end time of simulation: " + str(self.endTime))
+    def _testFuel(self):
+        """" for all planes, calculate fuel after each trip. Check if fuel <0 at any point """
+        for plane in self.flightPlan.getPlanes():
+            fuel = plane.getFuelAt(self.startTime)
+            
+            for trip in plane.getSortedTrips():
+                fuel -= trip.getDistance()
+                
+                if fuel < 0:
+                    raise ValueError("Fuel reached <0 on trip:  " + str(trip))
+                
+                if trip.getRefuel():
+                    fuel = plane.getFuelAt(0)
+    
+    def _testTrips(self):
+        planes = self.flightPlan.getPlanes()
+        
+        for plane in planes:
+            trips = plane.getTrips()
+            tripStartEnd = []            
+        
+            for trip in trips:
+                start = trip.getStartTime()
+                end = start + plane.calcTimeTakenOverTrip(trip)
+                tripStartEnd += [(start, end)]
+            
+            allTripIndexes = range(len(tripStartEnd))
+            for i in allTripIndexes:
+                start, end = tripStartEnd[i]
+                restTripIndexes = allTripIndexes[:] # copy
+                del restTripIndexes[i]
+                
+                for j in restTripIndexes:
+                    startCheck, endCheck = tripStartEnd[j]
+                    if startCheck <= start <= endCheck or startCheck <= end <= endCheck:
+                        raise ValueError("Trip collision occured with plane: " + str(plane))
+    
+    def _loadData(self):
+        locationsFile = open(locationsFilePath)
+        self._interpretLocations(locationsFile.read())
+        locationsFile.close()
+        
+        configFile = open(configFilePath)
+        self._interpretConfig(configFile.read())
+        configFile.close()
+        
+        connectionsFile = open(connectionsFilePath)
+        passengersFile = open(passengersFilePath)
+        self._interpretConnections(connectionsFile.read(), passengersFile.read())
+        connectionsFile.close()
+        passengersFile.close()
+        
+        planesFile = open(planesFilePath)
+        self._interpretPlanes(planesFile.read())
+        planesFile.close()
+        
+        tripsFile = open(tripsFilePath)
+        passengersOnTripFile = open(passengersOnTripFilePath)
+        self._interpretTrips(tripsFile.read(), passengersOnTripFile.read())
+        tripsFile.close()
+        passengersOnTripFile.close()
+    
+    def _interpretConfig(self, configString):
+        configList = [line.split("=") for line in configString.split("\n")]
+        for setting, value in configList:
+            if setting == "starttime":
+                self.startTime = int(value)
+                
+            elif setting == "endtime":
+                self.endTime = int(value)
+                
+            elif setting == "noflystart":
+                self.noFlyStart = int(value)
+                
+            elif setting == "noflyend":
+                self.noFlyEnd = int(value)
+                
+            elif setting == "home":
+                location = self.map.getLocationByName(value)
+                if location != None:
+                    self.home = location
+                else:
+                    raise ValueError("Unknown location: " + value + " set as home in " + configFilePath)
+           
+    def _interpretLocations(self, locationsString):
+        locationsList = [line.split(",") for line in locationsString.split("\n")]
+        self.map.addLocations([Location(name, locationId, (x, y)) for x, y, locationId, name in locationsList])
+              
+    def _interpretConnections(self, connectionsString, passengersString):
+        connectionsList = [line.split(',') for line in connectionsString.split("\n")]
+        passengersList = [line.split(',') for line in passengersString.split("\n")]
+        
+        idToLocation = {}
+        for location in self.map.getLocations():
+            idToLocation[location.getId()] = location
+                    
+        for i in range(len(connectionsList)):
+            for j in range(len(connectionsList[i])):
+                startLocation = idToLocation[i]
+                endLocation = idToLocation[j]
+                if startLocation != endLocation:
+                    connection = Connection(startLocation, endLocation, connectionsList[i][j], passengersList[i][j])
+                    self.flightPlan.addConnection(connection)
+                    startLocation.addConnection(connection)
+
+    def _interpretPlanes(self, planesString):
+        planesList = [line.split(',') for line in planesString.split("\n")]
+        planes = [Plane(name, maxPassengers, planeType, self.home, speed, flightRange)\
+                                    for name, maxPassengers, planeType, speed, flightRange in planesList]
+        self.flightPlan.addPlanes(planes)
+
+    def _interpretTrips(self, tripString, passengersOnTripString):
+        tripsList = [line.split(',') for line in tripString.split("\n")]
+        passengersOnTripList = [line.split(',') for line in passengersOnTripString.split("\n")]
+        
+        nameToPlane = {}
+        for plane in self.flightPlan.getPlanes():
+            nameToPlane[plane.getName()] = plane
+        
+        tripNameToPassengers = {}
+        for tripName, numPassengers, endLocationName in passengersOnTripList:
+  
+            endLocation = self.map.getLocationByName(endLocationName)            
+            if endLocation == None:
+                raise ValueError("Unknown location: " + endLocationName + " in " + passengersOnTripFilePath)
+            
+            passengers = tripNameToPassengers.get(tripName, {})     
+            if passengers.get(endLocation, None) != None:
+                raise ValueError("Trip: " + tripName + " is mentioned twice with the same end location: " +\
+                                  endLocationName + " in " + passengersOnTripFilePath)
+                
+            passengers[endLocation] = int(numPassengers)
+            tripNameToPassengers[tripName] = passengers
+        
+        unknownTripNames = tripNameToPassengers.keys()
+        knownTripNames = []
+        
+        for tripName, startTime, planeName, origin, destination, refuel in tripsList:
+            plane = nameToPlane.get(planeName, None)
+            
+            if plane != None:
+                startLocation = self.map.getLocationByName(origin)
+                endLocation = self.map.getLocationByName(destination)
+                
+                if startLocation != None and endLocation != None:
+                    connection = startLocation.getConnection(endLocation)
+                    
+                    if connection != None:
+                
+                        # easier to ask for forgiveness, than to ask permission
+                        try:
+                            unknownTripNames.remove(tripName)
+                        except ValueError:
+                            pass
+                        
+                        if tripName in knownTripNames:
+                            raise ValueError("Duplicate trip name in " + tripsFilePath)
+                        
+                        knownTripNames.append(tripName)
+                        passengers = tripNameToPassengers.get(tripName, {})
+                        plane.addTrip(Trip(tripName, startTime, connection, passengers, int(refuel)))
+                    else:
+                        raise ValueError("Connection between: " + str(origin) + ", " + str(destination) + " does not exist.")
+                else:
+                    raise ValueError("Either one of the following locations is unknown in map: " + str(origin) + ", " + str(destination))
+            else:
+                raise ValueError("Unknown plane: " + str(planeName) + " in " + tripsFilePath)
+        
+        if len(unknownTripNames) > 0:
+            raise ValueError("Unknown trip names: " + str(unknownTripNames) + " in " + passengersOnTripFilePath)
+            
 
 class SimulationLog(object):
     """
@@ -386,12 +442,14 @@ class FlightPlan(object):
         return self.planes
     
     def getConnectionToLogAt(self, time):
+        time = int(time)
         connectionToLog = {}
         for connection in self.connections:
             connectionToLog[connection] = connection.getConnectionLogAt(time)
         return connectionToLog
     
     def getPlaneToLogAt(self, time):
+        time = int(time)
         planeToLog = {}
         for plane in self.planes:
             planeToLog[plane] = plane.getPlaneLogAt(time)
@@ -416,7 +474,7 @@ class Plane(object):
         self.planeType = str(planeType)
         self.speed = int(speed)
         self.maxFuel = int(maxFuel)
-        self.home = str(home)
+        self.home = home
         self.trips = {} #startTimeToTrip
         self.timeToPlaneLog = {}
         
@@ -427,9 +485,9 @@ class Plane(object):
         self.location = location
         
     def addTrip(self, trip):
-        if trip.getNumPassengers() > self.maxPassengers:
+        if trip.getTotalNumPassengers() > self.maxPassengers:
             raise ValueError("Plane: " + str(self) + " cannot carry more than " + str(self.maxPassengers) +\
-                              " Passengers, requested: " + str(trip.getNumPassengers()))
+                              " Passengers, requested: " + str(trip.getTotalNumPassengers()))
         
         startTime = trip.getStartTime()
         self.trips[startTime] = trip
@@ -439,6 +497,9 @@ class Plane(object):
     
     def getFuelAt(self, time):
         return self.getPlaneLogAt(time).getFuel()
+        
+    def getPassengersAt(self, time):
+        return self.getPlaneLogAt(time).getPassengers()
         
     def getPlaneLogAt(self, time):
         """
@@ -452,13 +513,17 @@ class Plane(object):
         if time < 0:
             raise ValueError("This is not the delorean, plane: " + str(self) + " cannot go to time: " + str(time))     
         
-        return self._getPlaneLogAtRec(time)
+        if len(self.trips) == 0:
+            self.timeToPlaneLog[time] = PlaneLog(self, {}, time, self.maxFuel, self.home.getCoords(), None)
         
+        return self._getPlaneLogAtRec(time)
+           
     def _getPlaneLogAtRec(self, time):
         """
         Recursively calculate the plane log at time. As the current state i of the plane is dependent on state i-1,
         we backtrack till a known state and calculate upwards from there. For example if time = 500 and no state is known,
         all 0-499 states are calculated. All planelogs created at states are stored.
+        Assumes trips is not empty.
         :param time: requested time, int > 0 (unchecked)
         :returns: log containing the data of the plane at the requested time.
         :rtype: PlaneLog
@@ -466,25 +531,29 @@ class Plane(object):
         
         time = int(time)
         
-        planelog = self.timeToPlaneLog.get(time, None)
+        planeLog = self.timeToPlaneLog.get(time, None)
+        
+        # base case
+        if planeLog != None:
+            return planeLog
         
         # base case
         if time == 0:
-            if planelog == None:
-                startTime = min(self.trips.keys())
-                trip = self.trips[startTime]
+            startTime = min(self.trips.keys())
+            trip = self.trips[startTime]
+            
+            coords = trip.getConnection().getStartLocation().getCoords()
+            if startTime < 1:
                 
-                if startTime < 1:
-                    connection = trip.getConnection()
-                    
-                    # substract passengers boarding plane from possible passengers on connection.
-                    connection.substractPotentialPassengers(trip.getNumPassengers(), time) 
-                    self.timeToPlaneLog[time] = PlaneLog(self, time, self.maxFuel, trip.getConnection().getStartLocation().getCoords(), trip)
-                else:
-                    self.timeToPlaneLog[time] = PlaneLog(self, time, self.maxFuel, trip.getConnection().getStartLocation().getCoords(), None)
+                # subtract passengers boarding plane from possible passengers on connections.
+                trip.subtractPassengers()
+                
+                self.timeToPlaneLog[time] = PlaneLog(self, trip.getPassengers(), time, self.maxFuel, coords, trip)
+            else:
+                self.timeToPlaneLog[time] = PlaneLog(self, {}, time, self.maxFuel, coords, None)
         
         # recursive step       
-        elif planelog == None:        
+        else:        
             oldPlaneLog = self._getPlaneLogAtRec(time - 1)        
             newTrip = self._getTripWithStartBetween(time, time + 1)
             
@@ -495,6 +564,7 @@ class Plane(object):
                 # for last minute changes (pun intended). Else trip collision occurred, raise exception.
                 if oldPlaneLog.getTrip() != None:
                     newPlaneLog = self._createNextPlaneLog(oldPlaneLog)
+                    
                     if newPlaneLog.getTrip() == None:
                         oldPlaneLog = newPlaneLog
                     else:
@@ -507,10 +577,17 @@ class Plane(object):
                 if oldPlaneLog.getCoords() != startLocation.getCoords():
                     raise ValueError("plane: " + str(self) + ", Start coords of new trip: " + str(startLocation.getCoords()) +\
                                       " does not match current coords: " + str(oldPlaneLog.getCoords()))
- 
-                # substract passengers boarding plane from possible passengers on connection.
-                connection.substractPotentialPassengers(newTrip.getNumPassengers(), time) 
-                self.timeToPlaneLog[time] = PlaneLog(self, time, oldPlaneLog.getFuel(), startLocation.getCoords(), newTrip)
+  
+                # subtract passengers boarding plane from possible passengers on connections.
+                newTrip.subtractPassengers()
+                
+                passengers = self._combinePassengers(oldPlaneLog.getPassengers(), newTrip.getPassengers())
+                
+                if sum(passengers.values()) > self.maxPassengers:
+                    raise ValueError("Plane: " + str(self) + " cannot carry more than " + str(self.maxPassengers) +\
+                              " Passengers, requested: " + str(sum(passengers.values())) + " at time: " + str(time))
+                
+                self.timeToPlaneLog[time] = PlaneLog(self, passengers, time, oldPlaneLog.getFuel(), startLocation.getCoords(), newTrip)
         
         return self.timeToPlaneLog[time]
     
@@ -532,7 +609,7 @@ class Plane(object):
         oldTrip = oldPlaneLog.getTrip()
         
         if oldTrip == None:
-            return PlaneLog(self, time, oldPlaneLog.getFuel(), oldCoords, None)
+            return PlaneLog(self, oldPlaneLog.getPassengers(), time, oldPlaneLog.getFuel(), oldCoords, None)
         
         oldConnection = oldTrip.getConnection()
         oldStartCoords = oldConnection.getStartLocation().getCoords()
@@ -542,21 +619,33 @@ class Plane(object):
         # if end already reached, check if still busy with trip; return new PlaneLog
         if oldLandTime >= 0:
             tripStopTime = oldLandTime + waitAtAirport
+            
             if oldTrip.getRefuel():
                 tripStopTime += waitAtRefuel
-            if time == tripStopTime:
+                
+            if time >= tripStopTime:
+                passengers = oldPlaneLog.getPassengers().copy()
+                
+                # arrived at endlocation, thus remove passengers
+                try:
+                    del passengers[oldTrip.getEndLocation()]
+                except KeyError:
+                    pass
+                
                 if oldTrip.getRefuel():
-                    return PlaneLog(self, time, self.maxFuel, oldCoords, None)
+                    return PlaneLog(self, passengers, time, self.maxFuel, oldCoords, None)
                 else:
-                    return PlaneLog(self, time, oldPlaneLog.getFuel(), oldCoords, None)
+                    return PlaneLog(self, passengers, time, oldPlaneLog.getFuel(), oldCoords, None)
             else:
-                return PlaneLog(self, time, oldPlaneLog.getFuel(), oldCoords, oldTrip, oldLandTime)
+                return PlaneLog(self, oldPlaneLog.getPassengers(), time, oldPlaneLog.getFuel(), oldCoords, oldTrip, oldLandTime)
             
         # else, calculate new coords on trip; return new PlaneLog
         else:   
             distance = oldConnection.getDistance()
+            
             # Pythagoras, hurray!
             actualDistance = math.sqrt((oldEndCoords[0] - oldStartCoords[0])**2 + (oldEndCoords[1] - oldStartCoords[1])**2)
+            
             speed = (self.speed / 60.0)
             actualSpeed = (speed / distance) * actualDistance # coords do not match the distance in trips, hence actualSpeed
             x = oldEndCoords[0] - oldStartCoords[0]
@@ -567,7 +656,7 @@ class Plane(object):
             newCoords = (oldCoords[0] + actualSpeed * math.cos(alpha), oldCoords[1] + actualSpeed * math.sin(alpha))
             
             hasLanded = False
-                     
+            
             # if plane flew over the end location, set coords to match end location, thus plane has landed.
             # adjust fuel spend to match actual distance travelled, thus not 'wasting' fuel.
             if self._isBetween(oldStartCoords, newCoords, oldEndCoords):
@@ -581,9 +670,9 @@ class Plane(object):
                 raise ValueError("Plane: " + str(self) + " crashed at time: " + str(time) + ", reason fuel: " + str(newFuel))
             
             if hasLanded:
-                return PlaneLog(self, time, newFuel, newCoords, oldTrip, landTime = time)
+                return PlaneLog(self, oldPlaneLog.getPassengers(), time, newFuel, newCoords, oldTrip, landTime = time)
             else:
-                return PlaneLog(self, time, newFuel, newCoords, oldTrip)
+                return PlaneLog(self, oldPlaneLog.getPassengers(), time, newFuel, newCoords, oldTrip)
        
     # source: http://stackoverflow.com/questions/328107/how-can-you-determine-a-point-is-between-two-other-points-on-a-line-segment   
     def _isBetween(self, a, b, c):
@@ -602,7 +691,11 @@ class Plane(object):
             return False
         
         return True
-         
+    
+    def _combinePassengers(self, passengers1, passengers2):
+        return dict((endLoc, passengers1.get(endLoc, 0) + passengers2.get(endLoc, 0))\
+              for endLoc in set(passengers1)|set(passengers2))
+        
     def _getTripWithStartBetween(self, lowerbound, upperbound):
         startTimes = self.trips.keys()
         for startTime in startTimes:
@@ -656,13 +749,14 @@ class PlaneLog(object):
     - landTime int, time plane has landed, -1 if plane not on trip or in the 'air'.
     """
     
-    def __init__(self, plane, time, fuel, coords, trip, landTime = -1):
+    def __init__(self, plane, passengers, time, fuel, coords, trip, landTime = -1):
         self.plane = plane
         self.time = time
-        self.fuel = fuel # cutoff to int at end of trips.
+        self.fuel = fuel
         self.coords = coords
         self.trip = trip
         self.landTime = landTime
+        self.passengers = passengers
         
     def getPlane(self):
         return self.plane
@@ -681,13 +775,23 @@ class PlaneLog(object):
     
     def getLandTime(self):
         return self.landTime
+    
+    def getPassengers(self):
+        return self.passengers
+    
+    def getNumPassengersTo(self, endLocation):
+        return self.passengers.get(endLocation, 0)
+    
+    def getTotalNumPassengers(self):
+        return sum(self.passengers.values())
 
 class Trip(object):
-    def __init__(self, startTime, connection, numPassengers, refuel):
+    def __init__(self, name, startTime, connection, passengers, refuel):
+        self.name = name
         self.startTime = float(startTime)
         self.connection = connection
         self.refuel = bool(refuel)
-        self.numPassengers = int(numPassengers)
+        self.passengers = passengers # end location to number of passengers
         
     def __str__(self):
         return "starttime: " + str(self.startTime) + ", " + str(self.connection)
@@ -710,8 +814,30 @@ class Trip(object):
     def getEndLocation(self):
         return self.connection.getEndLocation()
     
-    def getNumPassengers(self):
-        return self.numPassengers
+    def getPassengers(self):
+        return self.passengers
+    
+    def getNumPassengersTo(self, endLocation):
+        return self.passengers.get(endLocation, 0)
+    
+    def getTotalNumPassengers(self):
+        return sum(self.passengers.values())
+    
+    def getPassengerEndLocations(self):
+        return self.passengers.keys()
+    
+    def getPassengerConnections(self):
+        connections = []
+        for endLocation in self.passengers.keys():
+            connections.append(self.getStartLocation().getConnection(endLocation))
+        return connections
+    
+    def subtractPassengers(self):
+        connections = self.getPassengerConnections()
+
+        # subtract passengers boarding plane from possible passengers on connection.
+        for connection in connections:
+            connection.subtractPotentialPassengers(self.passengers[connection.getEndLocation()], self.startTime) 
     
 class Map(object):
     def __init__(self, dimensions):
@@ -764,14 +890,14 @@ class Connection(object):
     def __str__(self):
         return str(self.startLocation) + " --" + str(self.distance) + "--> " + str(self.endLocation) 
         
-    def substractPotentialPassengers(self, numPassengers, time):
+    def subtractPotentialPassengers(self, numPassengers, time):
         connectionLog = self.getConnectionLogAt(time)
         potentialPassengers = connectionLog.getPotentialPassengers()
         newPotentialPassengers = potentialPassengers - numPassengers
         if newPotentialPassengers >= 0:
             self.timeToConnectionLog[time] = ConnectionLog(self, time, newPotentialPassengers)
         else:
-            raise ValueError("Illegal passenger substraction in connection: " + str(self) + ", tried to substract " +\
+            raise ValueError("Illegal passenger subtraction in connection: " + str(self) + ", tried to subtract " +\
                               str(numPassengers) + " from " + str(potentialPassengers))
         
     def getDistance(self):

@@ -1,0 +1,5 @@
+trip1,31,Athene
+trip2,20,Berlijn
+trip2,30,Amsterdam
+trip3,33,Amsterdam
+trip4,20,Londen
