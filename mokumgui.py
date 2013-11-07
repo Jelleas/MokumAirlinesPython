@@ -52,15 +52,20 @@ class SimulationGUI(tk.Frame):
             
         self.after(10, self.run)
 
-    def restartSimulation(self):
+    def restartSimulation(self):                    
+        self.pause(False)
+
         if self.time == self.endTime:
             self.time = self.timeEntry.restartTime()
             app.after(10, app.run)
         else:
             self.time = self.timeEntry.restartTime()
-    
-    def pauseSimulation(self):
-        self.isPaused = not self.isPaused
+
+    def togglePause(self):
+        self.pause(not self.isPaused)
+
+    def pause(self, isPaused):
+        self.isPaused = isPaused
         
         if self.isPaused:
             self.pauseButton.config(text = "Resume")
@@ -78,7 +83,7 @@ class SimulationGUI(tk.Frame):
         self.restartButton = tk.Button(self, text = "Restart", command = self.restartSimulation)
         self.restartButton.grid(row = 0, column = 1)
         
-        self.pauseButton = tk.Button(self, text = "Pause", command = self.pauseSimulation)
+        self.pauseButton = tk.Button(self, text = "Pause", command = self.togglePause)
         self.pauseButton.grid(row = 0, column = 2)
         
         self.canvas = tk.Canvas(self, width = 450, height = 450)
