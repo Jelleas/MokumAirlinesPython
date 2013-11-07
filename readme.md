@@ -10,7 +10,7 @@ Without GUI.
 
 Note the no-gui variant does not produce much output, but you can use it for debugging!
 
-<h3> Filestructures: </h3>
+<h3> Filestructures </h3>
 
 %{color:red}WARNING do not end a file with a blank line!%
 
