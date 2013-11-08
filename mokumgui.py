@@ -131,6 +131,7 @@ class TimeEntry(tk.Frame):
         self.time = self.startTime
         self.endTime = endTime
         self.isPaused = isPaused
+        self.timeStep = 1
         self._createTimeEntry()
         
     def _createTimeEntry(self):
@@ -144,10 +145,14 @@ class TimeEntry(tk.Frame):
         if not self.isPaused:
             self.timeEntry.config(state = "readonly")
         
-        self.timeEntry.grid(row = 0, column = 1)
+        self.timeEntry.grid(row = 0, column = 2)
         
-        self.setButton = tk.Button(self, text = "Set", command = self.setTime)
-        self.setButton.grid(row = 0, column = 2)
+        self.timeEntry.bind("<Return>", self.callbackSetTime)
+        self.speedUpButton = tk.Button(self, text = ">>", command = self.speedUp)
+        self.speedUpButton.grid(row = 0, column = 3)
+        
+        self.slowDownButton = tk.Button(self, text = "<<", command = self.slowDown)
+        self.slowDownButton.grid(row = 0, column = 1)
     
     def pauseTimeEntry(self, isPaused):
         if self.isPaused != isPaused:
@@ -166,10 +171,22 @@ class TimeEntry(tk.Frame):
         return self.time
     
     def nextTime(self):
-        if self.startTime <= self.time + 1 < self.endTime:
-            self.time += 1
+        if self.startTime <= self.time + self.timeStep < self.endTime:
+            self.time += self.timeStep
             self._updateTimeEntry()
         return self.time
+    
+    def speedUp(self):
+        self.timeStep += 1
+        
+        if self.timeStep == 0:
+            self.timeStep += 1
+        
+    def slowDown(self):
+        self.timeStep -= 1
+        
+        if self.timeStep == 0:
+            self.timeStep -= 1
     
     def _updateTimeEntry(self):
         # TODO ugly solution, fix?
@@ -186,6 +203,9 @@ class TimeEntry(tk.Frame):
     
     def getTime(self):
         return self.time
+    
+    def callbackSetTime(self, event):
+        self.setTime()
     
     def setTime(self):
         if self._isValidTime():
@@ -225,15 +245,20 @@ class PlaneTable(tk.Frame):
         plane = self.currentPlane
         self.tableEntries = []
         
+        self.titleLabel = tk.Label(self, text = str(plane), borderwidth = 0, fg = self.planeToColor[self.currentPlane])
+        self.titleLabel.grid(row = 0, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
+        
         self.nextPlaneButton = tk.Button(self, text = "Next Plane", command = self.nextPlane)
         self.nextPlaneButton.grid(row = 1, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
         
-        label = tk.Label(self, text = str(plane), borderwidth = 0, width = 10, fg = self.planeToColor[self.currentPlane])
-        label.grid(row = 0, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
+        passengerKilometersString = str("Passenger Kilometers: %d" %(plane.getPassengerKilometersAt(self.time)))
+        self.passengerKilometersLabel = tk.Label(self, text = passengerKilometersString, borderwidth = 0)
+        self.passengerKilometersLabel.grid(row = 2, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
         
-        self.tableTitle = label
+        self.fuelLabel = tk.Label(self, text = str("Fuel: %.2f" %(plane.getFuelAt(self.time))), borderwidth = 0)
+        self.fuelLabel.grid(row = 3, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
         
-        # passengers as a list of tuples [(endLocation, numPassengers)]
+        # passengers {connection:numPassengers} as list of tuples [(connection, numPassengers)]
         passengers = plane.getPassengersAt(self.time).items()
         passengersLength = len(passengers)
         
@@ -242,11 +267,11 @@ class PlaneTable(tk.Frame):
             passenger = passengers[i]
             
             label = tk.Label(self, text = str(passenger[0]), borderwidth = 0, width = 30)
-            label.grid(row = i + 2, column = 0, sticky = "nsew", padx = 1, pady = 1)
+            label.grid(row = i + 4, column = 0, sticky = "nsew", padx = 1, pady = 1)
             currentRow.append(label)
             
             label = tk.Label(self, text = str(passenger[1]), borderwidth = 0, width = 5)
-            label.grid(row = i + 2, column = 1, sticky = "nsew", padx = 1, pady = 1)
+            label.grid(row = i + 4, column = 1, sticky = "nsew", padx = 1, pady = 1)
             currentRow.append(label)
             
             self.tableEntries.append(currentRow)
@@ -255,11 +280,11 @@ class PlaneTable(tk.Frame):
             currentRow = []
             
             label = tk.Label(self, text = "", borderwidth = 0, width = 30)
-            label.grid(row = i + 2, column = 0, sticky = "nsew", padx = 1, pady = 1)
+            label.grid(row = i + 4, column = 0, sticky = "nsew", padx = 1, pady = 1)
             currentRow.append(label)
             
             label = tk.Label(self, text = "", borderwidth = 0, width = 5)
-            label.grid(row = i + 2, column = 1, sticky = "nsew", padx = 1, pady = 1)
+            label.grid(row = i + 4, column = 1, sticky = "nsew", padx = 1, pady = 1)
             currentRow.append(label)
             
             self.tableEntries.append(currentRow)
@@ -269,7 +294,10 @@ class PlaneTable(tk.Frame):
         
         plane = self.currentPlane
         
-        self.tableTitle.config(text = str(plane), fg = self.planeToColor[self.currentPlane])
+        self.titleLabel.config(text = str(plane), fg = self.planeToColor[self.currentPlane])
+        passengerKilometersString = str("Passenger Kilometers: %d" %(plane.getPassengerKilometersAt(self.time)))
+        self.passengerKilometersLabel.config(text = passengerKilometersString)
+        self.fuelLabel.config(text = str("Fuel: %.2f" %(plane.getFuelAt(self.time))))
         
         # passengers {connection:numPassengers} as list of tuples [(connection, numPassengers)]
         passengers = plane.getPassengersAt(self.time).items()

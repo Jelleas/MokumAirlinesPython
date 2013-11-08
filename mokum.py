@@ -510,6 +510,9 @@ class Plane(object):
         
     def getPassengersAt(self, time):
         return self.getPlaneLogAt(time).getPassengers()
+    
+    def getPassengerKilometersAt(self, time):
+        return self.getPlaneLogAt(time).getPassengerKilometers()
         
     def getPlaneLogAt(self, time):
         """
@@ -553,6 +556,7 @@ class Plane(object):
             trip = self.trips[startTime]
             
             coords = trip.getConnection().getStartLocation().getCoords()
+            
             if startTime < 1:
                 
                 # subtract passengers boarding plane from possible passengers on connections.
@@ -597,7 +601,9 @@ class Plane(object):
                     raise ValueError("Plane: " + str(self) + " cannot carry more than " + str(self.maxPassengers) +\
                               " Passengers, requested: " + str(sum(passengers.values())) + " at time: " + str(time))
                 
-                self.timeToPlaneLog[time] = PlaneLog(self, passengers, time, oldPlaneLog.getFuel(), startLocation.getCoords(), newTrip)
+                self.timeToPlaneLog[time] = PlaneLog(self, passengers, time, oldPlaneLog.getFuel(),
+                                                      startLocation.getCoords(), newTrip, 
+                                                      passengerKilometers = oldPlaneLog.getPassengerKilometers())
         
         return self.timeToPlaneLog[time]
     
@@ -619,7 +625,8 @@ class Plane(object):
         oldTrip = oldPlaneLog.getTrip()
         
         if oldTrip == None:
-            return PlaneLog(self, oldPlaneLog.getPassengers(), time, oldPlaneLog.getFuel(), oldCoords, None)
+            return PlaneLog(self, oldPlaneLog.getPassengers(), time, oldPlaneLog.getFuel(),
+                             oldCoords, None, passengerKilometers = oldPlaneLog.getPassengerKilometers())
         
         oldConnection = oldTrip.getConnection()
         oldStartCoords = oldConnection.getStartLocation().getCoords()
@@ -633,15 +640,19 @@ class Plane(object):
             if oldTrip.getRefuel():
                 tripStopTime += waitAtRefuel
                 
+            passengerKilometers = oldPlaneLog.getPassengerKilometers()
             if time >= tripStopTime:
                 passengers = oldPlaneLog.getPassengers()
                 
                 if oldTrip.getRefuel():
-                    return PlaneLog(self, passengers, time, self.maxFuel, oldCoords, None)
+                    return PlaneLog(self, passengers, time, self.maxFuel, oldCoords, None, 
+                                    passengerKilometers = passengerKilometers)
                 else:
-                    return PlaneLog(self, passengers, time, oldPlaneLog.getFuel(), oldCoords, None)
+                    return PlaneLog(self, passengers, time, oldPlaneLog.getFuel(), oldCoords, None, 
+                                    passengerKilometers = passengerKilometers)
             else:
-                return PlaneLog(self, oldPlaneLog.getPassengers(), time, oldPlaneLog.getFuel(), oldCoords, oldTrip, oldLandTime)
+                return PlaneLog(self, oldPlaneLog.getPassengers(), time, oldPlaneLog.getFuel(),
+                                 oldCoords, oldTrip, oldLandTime, passengerKilometers = passengerKilometers)
             
         # else, calculate new coords on trip; return new PlaneLog
         else:   
@@ -673,15 +684,20 @@ class Plane(object):
             if newFuel < 0:
                 raise ValueError("Plane: " + str(self) + " crashed at time: " + str(time) + ", reason fuel: " + str(newFuel))
             
+            passengerKilometers = oldPlaneLog.getPassengerKilometers()
+            
+            # if arrived (landed) at end location
             if hasLanded:
                 passengers = oldPlaneLog.getPassengers().copy()
                 
-                # arrived (landed) at end location, thus remove passengers and update score
-                passengerKilometers = self._arrivedAt(oldTrip.getEndLocation(), passengers)
+                # remove passengers from plane and update passengerKilometers
+                passengerKilometers += self._arrivedAt(oldTrip.getEndLocation(), passengers)
                 
-                return PlaneLog(self, passengers, time, newFuel, newCoords, oldTrip, landTime = time)
+                return PlaneLog(self, passengers, time, newFuel, newCoords, oldTrip,
+                                 landTime = time, passengerKilometers = passengerKilometers)
             else:
-                return PlaneLog(self, oldPlaneLog.getPassengers(), time, newFuel, newCoords, oldTrip)
+                return PlaneLog(self, oldPlaneLog.getPassengers(), time, newFuel, newCoords, oldTrip, 
+                                passengerKilometers = passengerKilometers)
        
     # source: http://stackoverflow.com/questions/328107/how-can-you-determine-a-point-is-between-two-other-points-on-a-line-segment   
     def _isBetween(self, a, b, c):
@@ -713,10 +729,11 @@ class Plane(object):
         return None
     
     def _arrivedAt(self, endLocation, passengers):
+        passengerKilometers = 0
         for connection in passengers.keys():
             if endLocation == connection.getEndLocation():
+                passengerKilometers += connection.getDistance() * passengers[connection]
                 del passengers[connection]
-        passengerKilometers = 0
         return passengerKilometers
     
     def getMaxPassengers(self):
@@ -765,13 +782,15 @@ class PlaneLog(object):
     - landTime int, time plane has landed, -1 if plane not on trip or in the 'air'.
     """
     
-    def __init__(self, plane, passengers, time, fuel, coords, trip, landTime = -1):
+    def __init__(self, plane, passengers, time, fuel, coords, trip, 
+                 landTime = -1, passengerKilometers = 0):
         self.plane = plane
         self.time = time
         self.fuel = fuel
         self.coords = coords
         self.trip = trip
         self.landTime = landTime
+        self.passengerKilometers = passengerKilometers
         self.passengers = passengers # {connection:numPassengers}
         
     def getPlane(self):
@@ -794,6 +813,9 @@ class PlaneLog(object):
     
     def getPassengers(self):
         return self.passengers
+    
+    def getPassengerKilometers(self):
+        return self.passengerKilometers
     
     def getNumPassengers(self, connection):
         return self.passengers.get(connection, 0)
