@@ -151,6 +151,7 @@ class Simulation(object):
     def _testPlanes(self):
         for plane in self.flightPlan.getPlanes():
             trips = plane.getTrips()
+            
             if len(trips) > 0:
                 passedHome = False
                 minTime = self.endTime
@@ -185,13 +186,15 @@ class Simulation(object):
                                      " do not match.")
                 
                 if not passedHome:
-                    raise ValueError("Plane: " + str(plane) + " did not pass home atleast once.")
+                    raise ValueError("Plane: " + str(plane) + " did not pass home: " +\
+                                      str(self.home) + " atleast once.")
                 
                 maxTime += plane.calcTimeTakenOverTrip(endTrip)
                 
                 if maxTime > self.endTime:
                     raise ValueError("Plane: " + str(plane) + " started trip: " + str(endTrip) + " but this trip ends at: " +\
                                      str(maxTime) + " which is beyond end time of simulation: " + str(self.endTime))
+                    
     def _testFuel(self):
         """" for all planes, calculate fuel after each trip. Check if fuel <0 at any point """
         for plane in self.flightPlan.getPlanes():
@@ -201,7 +204,7 @@ class Simulation(object):
                 fuel -= trip.getDistance()
                 
                 if fuel < 0:
-                    raise ValueError("Fuel reached <0 on trip:  " + str(trip))
+                    raise ValueError("Fuel for plane: " + str(plane) + " reached <0 on trip:  " + str(trip))
                 
                 if trip.getRefuel():
                     fuel = plane.getFuelAt(0)
@@ -311,22 +314,22 @@ class Simulation(object):
         for plane in self.flightPlan.getPlanes():
             nameToPlane[plane.getName()] = plane
         
-        tripNameToPassengers = {}
+        tripNameToEndLocationToNumPassengers = {} # TODO better name?
         for tripName, numPassengers, endLocationName in passengersOnTripList:
   
             endLocation = self.map.getLocationByName(endLocationName)            
             if endLocation == None:
                 raise ValueError("Unknown location: " + endLocationName + " in " + passengersOnTripFilePath)
             
-            passengers = tripNameToPassengers.get(tripName, {})     
-            if passengers.get(endLocation, None) != None:
+            endLocationToNumPassengers = tripNameToEndLocationToNumPassengers.get(tripName, {})     
+            if endLocationToNumPassengers.get(endLocation, None) != None:
                 raise ValueError("Trip: " + tripName + " is mentioned twice with the same end location: " +\
                                   endLocationName + " in " + passengersOnTripFilePath)
                 
-            passengers[endLocation] = int(numPassengers)
-            tripNameToPassengers[tripName] = passengers
+            endLocationToNumPassengers[endLocation] = int(numPassengers)
+            tripNameToEndLocationToNumPassengers[tripName] = endLocationToNumPassengers
         
-        unknownTripNames = tripNameToPassengers.keys()
+        unknownTripNames = tripNameToEndLocationToNumPassengers.keys()
         knownTripNames = []
         
         for tripName, startTime, planeName, origin, destination, refuel in tripsList:
@@ -343,7 +346,7 @@ class Simulation(object):
             if connection == None:
                 raise ValueError("Connection between: " + str(origin) + ", " + str(destination) + " does not exist.")
             
-            # easier to ask for forgiveness, than to ask permission
+            # easier to ask for forgiveness than permission
             try:
                 unknownTripNames.remove(tripName)
             except ValueError:
@@ -353,7 +356,18 @@ class Simulation(object):
                 raise ValueError("Duplicate trip name in " + tripsFilePath)
             
             knownTripNames.append(tripName)
-            passengers = tripNameToPassengers.get(tripName, {})
+            endLocationToNumPassengers = tripNameToEndLocationToNumPassengers.get(tripName, {})
+            
+            passengers = {}
+            for passengerEndLocation in endLocationToNumPassengers.keys():
+                passengerConnection = startLocation.getConnection(passengerEndLocation)
+                
+                if passengerConnection == None:
+                    raise ValueError("No known connection between: " + str(startLocation) + " and: " +\
+                                     str(passengerEndLocation) + " specified in " + str(passengersOnTripFilePath))
+                
+                passengers[passengerConnection] = endLocationToNumPassengers[passengerEndLocation]
+            
             plane.addTrip(Trip(tripName, startTime, connection, passengers, int(refuel)))
         
         if len(unknownTripNames) > 0:
@@ -620,13 +634,7 @@ class Plane(object):
                 tripStopTime += waitAtRefuel
                 
             if time >= tripStopTime:
-                passengers = oldPlaneLog.getPassengers().copy()
-                
-                # arrived at endlocation, thus remove passengers
-                try:
-                    del passengers[oldTrip.getEndLocation()]
-                except KeyError:
-                    pass
+                passengers = oldPlaneLog.getPassengers()
                 
                 if oldTrip.getRefuel():
                     return PlaneLog(self, passengers, time, self.maxFuel, oldCoords, None)
@@ -666,7 +674,12 @@ class Plane(object):
                 raise ValueError("Plane: " + str(self) + " crashed at time: " + str(time) + ", reason fuel: " + str(newFuel))
             
             if hasLanded:
-                return PlaneLog(self, oldPlaneLog.getPassengers(), time, newFuel, newCoords, oldTrip, landTime = time)
+                passengers = oldPlaneLog.getPassengers().copy()
+                
+                # arrived (landed) at end location, thus remove passengers and update score
+                passengerKilometers = self._arrivedAt(oldTrip.getEndLocation(), passengers)
+                
+                return PlaneLog(self, passengers, time, newFuel, newCoords, oldTrip, landTime = time)
             else:
                 return PlaneLog(self, oldPlaneLog.getPassengers(), time, newFuel, newCoords, oldTrip)
        
@@ -689,8 +702,8 @@ class Plane(object):
         return True
     
     def _combinePassengers(self, passengers1, passengers2):
-        return dict((endLoc, passengers1.get(endLoc, 0) + passengers2.get(endLoc, 0))\
-              for endLoc in set(passengers1)|set(passengers2))
+        return dict((connection, passengers1.get(connection, 0) + passengers2.get(connection, 0))\
+              for connection in set(passengers1)|set(passengers2))
         
     def _getTripWithStartBetween(self, lowerbound, upperbound):
         startTimes = self.trips.keys()
@@ -698,7 +711,14 @@ class Plane(object):
             if lowerbound <= startTime < upperbound:
                 return self.trips[startTime]
         return None
-         
+    
+    def _arrivedAt(self, endLocation, passengers):
+        for connection in passengers.keys():
+            if endLocation == connection.getEndLocation():
+                del passengers[connection]
+        passengerKilometers = 0
+        return passengerKilometers
+    
     def getMaxPassengers(self):
         return self.maxPassengers
                 
@@ -752,7 +772,7 @@ class PlaneLog(object):
         self.coords = coords
         self.trip = trip
         self.landTime = landTime
-        self.passengers = passengers
+        self.passengers = passengers # {connection:numPassengers}
         
     def getPlane(self):
         return self.plane
@@ -775,8 +795,15 @@ class PlaneLog(object):
     def getPassengers(self):
         return self.passengers
     
+    def getNumPassengers(self, connection):
+        return self.passengers.get(connection, 0)
+    
     def getNumPassengersTo(self, endLocation):
-        return self.passengers.get(endLocation, 0)
+        connectionsTo = []
+        for connection in self.passengers.keys():
+            if endLocation == connection.getEndLocation():
+                connectionsTo.append(connection)
+        return sum([self.passengers.get(connection, 0) for connection in connectionsTo])
     
     def getTotalNumPassengers(self):
         return sum(self.passengers.values())
@@ -787,7 +814,7 @@ class Trip(object):
         self.startTime = float(startTime)
         self.connection = connection
         self.refuel = bool(refuel)
-        self.passengers = passengers # end location to number of passengers
+        self.passengers = passengers # connection to number of passengers
         
     def __str__(self):
         return "starttime: " + str(self.startTime) + ", " + str(self.connection)
@@ -813,27 +840,31 @@ class Trip(object):
     def getPassengers(self):
         return self.passengers
     
+    def getNumPassengers(self, connection):
+        return self.passengers.get(connection, 0)
+    
     def getNumPassengersTo(self, endLocation):
-        return self.passengers.get(endLocation, 0)
+        connectionsTo = []
+        for connection in self.passengers.keys():
+            if endLocation == connection.getEndLocation():
+                connectionsTo.append(connection)
+        return sum([self.passengers.get(connection, 0) for connection in connectionsTo])
     
     def getTotalNumPassengers(self):
         return sum(self.passengers.values())
     
     def getPassengerEndLocations(self):
-        return self.passengers.keys()
+        return [connection.GetEndLocation() for connection in self.passengers.keys()]
     
     def getPassengerConnections(self):
-        connections = []
-        for endLocation in self.passengers.keys():
-            connections.append(self.getStartLocation().getConnection(endLocation))
-        return connections
+        return self.passengers.keys()
     
     def subtractPassengers(self):
         connections = self.getPassengerConnections()
 
         # subtract passengers boarding plane from possible passengers on connection.
         for connection in connections:
-            connection.subtractPotentialPassengers(self.passengers[connection.getEndLocation()], self.startTime) 
+            connection.subtractPotentialPassengers(self.passengers[connection], self.startTime) 
     
 class Map(object):
     def __init__(self, dimensions):
@@ -920,9 +951,6 @@ class Connection(object):
                 break  
             i += 1
         return self.timeToConnectionLog[timeKeys[i]]
-    
-#    def getPassengerKilometer(self):
-#        return self.potenialPassengers * self.distance
 
 class ConnectionLog(object):
     def __init__(self, connection, time, potentialPassengers):

@@ -16,9 +16,9 @@ class SimulationGUI(tk.Frame):
         self.simulation = simulation
         self.startTime = self.simulation.getStartTime()
         self.time = self.startTime
-        self.endTime = self.simulation.getEndTime()                   
-        
+        self.endTime = self.simulation.getEndTime()
         self.planes = self.simulation.getPlanes()
+        
         if len(self.planes) > maxPlanes:
             raise ValueError("Graphical simulation supports up to " + maxPlanes + " planes. " +\
                               str(len(self.planes)) + " planes given.")
@@ -206,7 +206,7 @@ class TimeEntry(tk.Frame):
                 
 class PlaneTable(tk.Frame):
     def __init__(self, planeToColor, time = 0, master = None, row = 1, column = 5):
-        tk.Frame.__init__(self, master, width = 100, height = 450, bg = "black", colormap = "new")
+        tk.Frame.__init__(self, master, bg = "black", colormap = "new")
         self.grid(row = row, column = column)
         self.master = master
         self.planes = planeToColor.keys()
@@ -241,19 +241,27 @@ class PlaneTable(tk.Frame):
             currentRow = []
             passenger = passengers[i]
             
-            for j in range(2):
-                label = tk.Label(self, text = str(passenger[j]), borderwidth = 0, width = 10)
-                label.grid(row = i + 2, column = j, sticky = "nsew", padx = 1, pady = 1)
-                currentRow.append(label)
+            label = tk.Label(self, text = str(passenger[0]), borderwidth = 0, width = 30)
+            label.grid(row = i + 2, column = 0, sticky = "nsew", padx = 1, pady = 1)
+            currentRow.append(label)
+            
+            label = tk.Label(self, text = str(passenger[1]), borderwidth = 0, width = 5)
+            label.grid(row = i + 2, column = 1, sticky = "nsew", padx = 1, pady = 1)
+            currentRow.append(label)
+            
             self.tableEntries.append(currentRow)
         
         for i in range(passengersLength, numTableRows):
             currentRow = []
             
-            for j in range(2):
-                label = tk.Label(self, text = "", borderwidth = 0, width = 10)
-                label.grid(row = i + 2, column = j, sticky = "nsew", padx = 1, pady = 1)
-                currentRow.append(label)
+            label = tk.Label(self, text = "", borderwidth = 0, width = 30)
+            label.grid(row = i + 2, column = 0, sticky = "nsew", padx = 1, pady = 1)
+            currentRow.append(label)
+            
+            label = tk.Label(self, text = "", borderwidth = 0, width = 5)
+            label.grid(row = i + 2, column = 1, sticky = "nsew", padx = 1, pady = 1)
+            currentRow.append(label)
+            
             self.tableEntries.append(currentRow)
                 
     def updatePlaneTable(self, time):
@@ -263,7 +271,7 @@ class PlaneTable(tk.Frame):
         
         self.tableTitle.config(text = str(plane), fg = self.planeToColor[self.currentPlane])
         
-        # passengers as list of tuples [(endLocation, numPassengers)]
+        # passengers {connection:numPassengers} as list of tuples [(connection, numPassengers)]
         passengers = plane.getPassengersAt(self.time).items()
         passengersLength = len(passengers)
         

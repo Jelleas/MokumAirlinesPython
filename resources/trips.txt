@@ -1,5 +1,5 @@
 trip1,361.33,plane1,Amsterdam,Athene,1
 trip2,700.332314,plane1,Athene,Berlijn,0
 trip3,1000,plane1,Berlijn,Amsterdam,0
-trip4,0,plane2,Amsterdam,Londen,0
+trip4,80,plane2,Amsterdam,Londen,0
 trip5,360.01,plane2,Londen,Amsterdam,0
