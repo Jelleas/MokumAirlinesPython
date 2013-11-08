@@ -3,3 +3,7 @@ trip2,20,Berlijn
 trip2,30,Amsterdam
 trip3,33,Amsterdam
 trip4,20,Londen
+trip6,40,Amsterdam
+trip7,30,Barcelona
+trip7,30,Copenhagen
+trip8,30,Copenhagen

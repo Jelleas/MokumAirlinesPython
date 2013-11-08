@@ -3,3 +3,7 @@ trip2,700.332314,plane1,Athene,Berlijn,0
 trip3,1000,plane1,Berlijn,Amsterdam,0
 trip4,80,plane2,Amsterdam,Londen,0
 trip5,360.01,plane2,Londen,Amsterdam,0
+trip6,0,plane3,Copenhagen,Amsterdam,0
+trip7,360,plane3,Amsterdam,Barcelona,0
+trip8,700,plane3,Barcelona,Londen,1
+trip9,950,plane3,Londen,Copenhagen,0

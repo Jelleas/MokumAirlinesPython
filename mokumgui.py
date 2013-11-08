@@ -20,7 +20,7 @@ class SimulationGUI(tk.Frame):
         self.planes = self.simulation.getPlanes()
         
         if len(self.planes) > maxPlanes:
-            raise ValueError("Graphical simulation supports up to " + maxPlanes + " planes. " +\
+            raise ValueError("Graphical simulation supports up to " + str(maxPlanes) + " planes. " +\
                               str(len(self.planes)) + " planes given.")
             
         if len(self.planes) == 0:
@@ -49,17 +49,12 @@ class SimulationGUI(tk.Frame):
         elif self.time < self.endTime:
             self.time = self.timeEntry.nextTime()
             self.drawSimulation()
-            
+        
         self.after(10, self.run)
 
-    def restartSimulation(self):                    
+    def restartSimulation(self):
         self.pause(False)
-
-        if self.time == self.endTime:
-            self.time = self.timeEntry.restartTime()
-            app.after(10, app.run)
-        else:
-            self.time = self.timeEntry.restartTime()
+        self.time = self.timeEntry.restartTime()
 
     def togglePause(self):
         self.pause(not self.isPaused)
@@ -72,7 +67,7 @@ class SimulationGUI(tk.Frame):
         else:
             self.pauseButton.config(text = "Pause")
         
-        self.timeEntry.pauseTimeEntry(self.isPaused)
+        self.timeEntry.pause(self.isPaused)
         
         self.drawSimulation()
     
@@ -91,9 +86,11 @@ class SimulationGUI(tk.Frame):
         self.canvas.create_image(10, 10, image = image, anchor = 'nw')
         
         self.timeEntry = TimeEntry(self.isPaused, startTime = self.startTime, endTime = self.endTime,
-                                    master = self, row = 0, column = 5)
+                                    master = self)
+        self.timeEntry.grid(row = 0, column = 5)
         
-        self.planeTable = PlaneTable(self.planeToColor, self.time, master = self, row = 1, column = 5)
+        self.planeTable = PlaneTable(self.planeToColor, self.time, master = self)
+        self.planeTable.grid(row = 1, column = 5)
 
     def drawSimulation(self):
         simulationLog = self.simulation.getSimulationLogAt(self.time) 
@@ -111,21 +108,24 @@ class SimulationGUI(tk.Frame):
                 x2 += deviationX
                 y1 += deviationY
                 y2 += deviationY
-                self.planeFigures.append(self.canvas.create_line(x1, y1, x2, y2, fill = self.planeToColor[plane], arrow = "last", width = 3.0))
+                lineId = self.canvas.create_line(x1, y1, x2, y2, fill = self.planeToColor[plane],
+                                                  arrow = "last", width = 3.0)
+                self.planeFigures.append(lineId)
             else:
                 x, y = log.getCoords()
                 x += deviationX
                 y += deviationY
-                self.planeFigures.append(self.canvas.create_rectangle(x - 3, y - 3, x + 3, y + 3, fill = self.planeToColor[plane]))
+                rectangleId = self.canvas.create_rectangle(x - 3, y - 3, x + 3, y + 3,
+                                                            fill = self.planeToColor[plane])
+                self.planeFigures.append(rectangleId)
             
         self.canvas.update()
 
         self.planeTable.updatePlaneTable(self.time)
 
 class TimeEntry(tk.Frame):
-    def __init__(self, isPaused, startTime = 0, endTime = 1440, master = None, row = 0, column = 5):
+    def __init__(self, isPaused, startTime = 0, endTime = 1440, master = None):
         tk.Frame.__init__(self, master, colormap = "new")
-        self.grid(row = row, column = column)
         self.master = master
         self.startTime = startTime
         self.time = self.startTime
@@ -154,7 +154,7 @@ class TimeEntry(tk.Frame):
         self.slowDownButton = tk.Button(self, text = "<<", command = self.slowDown)
         self.slowDownButton.grid(row = 0, column = 1)
     
-    def pauseTimeEntry(self, isPaused):
+    def pause(self, isPaused):
         if self.isPaused != isPaused:
             self.isPaused = isPaused
             
@@ -225,9 +225,8 @@ class TimeEntry(tk.Frame):
             return False
                 
 class PlaneTable(tk.Frame):
-    def __init__(self, planeToColor, time = 0, master = None, row = 1, column = 5):
+    def __init__(self, planeToColor, time = 0, master = None):
         tk.Frame.__init__(self, master, bg = "black", colormap = "new")
-        self.grid(row = row, column = column)
         self.master = master
         self.planes = planeToColor.keys()
         self.planeToColor = planeToColor
@@ -237,7 +236,14 @@ class PlaneTable(tk.Frame):
         self._createPlaneTable()
         
     def nextPlane(self):
-        self.currentPlaneNum = (self.currentPlaneNum + 1) % len(self.planes)
+        self._setPlane((self.currentPlaneNum + 1) % len(self.planes))
+        
+    def previousPlane(self):
+        planesLength = len(self.planes)
+        self._setPlane((planesLength + (self.currentPlaneNum - 1)) % planesLength)
+        
+    def _setPlane(self, planeNum):
+        self.currentPlaneNum = planeNum
         self.currentPlane = self.planes[self.currentPlaneNum]
         self.updatePlaneTable(self.time)
         
@@ -248,9 +254,15 @@ class PlaneTable(tk.Frame):
         self.titleLabel = tk.Label(self, text = str(plane), borderwidth = 0, fg = self.planeToColor[self.currentPlane])
         self.titleLabel.grid(row = 0, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
         
-        self.nextPlaneButton = tk.Button(self, text = "Next Plane", command = self.nextPlane)
-        self.nextPlaneButton.grid(row = 1, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
+        self.buttonFrame = tk.Frame(self)
+        self.buttonFrame.grid(row = 1, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
+         
+        self.previousPlaneButton = tk.Button(self.buttonFrame, text = "Previous Plane", command = self.previousPlane, width = 18)
+        self.previousPlaneButton.grid(row = 0, column = 0, sticky = "nsew", padx = 1, pady = 1)
         
+        self.nextPlaneButton = tk.Button(self.buttonFrame, text = "Next Plane", command = self.nextPlane, width = 18)
+        self.nextPlaneButton.grid(row = 0, column = 1, sticky = "nsew", padx = 1, pady = 1)
+       
         passengerKilometersString = str("Passenger Kilometers: %d" %(plane.getPassengerKilometersAt(self.time)))
         self.passengerKilometersLabel = tk.Label(self, text = passengerKilometersString, borderwidth = 0)
         self.passengerKilometersLabel.grid(row = 2, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
@@ -270,7 +282,7 @@ class PlaneTable(tk.Frame):
             label.grid(row = i + 4, column = 0, sticky = "nsew", padx = 1, pady = 1)
             currentRow.append(label)
             
-            label = tk.Label(self, text = str(passenger[1]), borderwidth = 0, width = 5)
+            label = tk.Label(self, text = str(passenger[1]), borderwidth = 0, width = 6)
             label.grid(row = i + 4, column = 1, sticky = "nsew", padx = 1, pady = 1)
             currentRow.append(label)
             
@@ -308,17 +320,23 @@ class PlaneTable(tk.Frame):
             passenger = passengers[i]
             
             for j in range(2):
-                tableEntry = currentRow[j]
-                tableEntry.config(text = str(passenger[j]))
+                currentRow[j].config(text = str(passenger[j]))
         
         for i in range(passengersLength, numTableRows):
             currentRow = self.tableEntries[i]
             
             for j in range(2):
-                tableEntry = currentRow[j]
-                tableEntry.config(text = "")
+                currentRow[j].config(text = "")
                 
         self.update()
+        
+class ConnectionTable(tk.Frame):
+    def __init__(self, connections, time = 0, master = None, row = 1, column = 5):
+        tk.Frame.__init__(self, master, bg = "black", colormap = "new")
+        self.grid(row = row, column = column)
+        self.master = master
+        self.connections = connections
+        self.time = time
         
 if __name__ == "__main__":
     start = dt.datetime.now()
@@ -332,12 +350,12 @@ if __name__ == "__main__":
     print "Time taken over pre simulation", end - start
      
     start = dt.datetime.now()
-    simulation.run() # pre computation of the entire simulation, speeds the visualization up
+    #simulation.run() # pre computation of the entire simulation, speeds the visualization up
     end = dt.datetime.now()
     print "Time taken over simulation", end - start
     
     image = tk.PhotoImage(file = "resources/europe.gif")
-    app = SimulationGUI(simulation, master = master)
-    app.master.title('Mokum Airlines')
-    app.after(100, app.run)
-    app.start()
+    gui = SimulationGUI(simulation, master = master)
+    gui.master.title('Mokum Airlines')
+    gui.after(100, gui.run)
+    gui.start()

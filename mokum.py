@@ -172,8 +172,8 @@ class Simulation(object):
                     if trip.getStartLocation() == self.home or trip.getEndLocation() == self.home:
                         passedHome = True
                     
-                    if self.noFlyStart <= startTime <= self.noFlyEnd or\
-                     self.noFlyStart <= endTime <= self.noFlyEnd:
+                    if self.noFlyStart <= startTime < self.noFlyEnd or\
+                     self.noFlyStart <= endTime < self.noFlyEnd:
                         raise ValueError("Plane: " + str(plane) + " with trip: " + str(trip) +\
                                          " tried to take off or land between noFlyStart: " +\
                                          str(self.noFlyStart) + " and noFlyEnd: " + str(self.noFlyEnd) +\
