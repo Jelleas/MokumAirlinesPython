@@ -32,6 +32,8 @@ class SimulationGUI(tk.Frame):
             
         self.planeFigures = []
         
+        self.locations = self.simulation.getLocations()
+        
         self.isPaused = False
         
         self.createWidgets()
@@ -49,7 +51,7 @@ class SimulationGUI(tk.Frame):
         elif self.time < self.endTime:
             self.time = self.timeEntry.nextTime()
             self.drawSimulation()
-        
+
         self.after(10, self.run)
 
     def restartSimulation(self):
@@ -92,6 +94,9 @@ class SimulationGUI(tk.Frame):
         self.planeTable = PlaneTable(self.planeToColor, self.time, master = self)
         self.planeTable.grid(row = 1, column = 5)
 
+        self.locationTable = LocationTable(self.locations, self.time, master = self)
+        self.locationTable.grid(row = 1, column = 6)
+
     def drawSimulation(self):
         simulationLog = self.simulation.getSimulationLogAt(self.time) 
         planeToLog = simulationLog.getPlaneToLog()
@@ -122,6 +127,7 @@ class SimulationGUI(tk.Frame):
         self.canvas.update()
 
         self.planeTable.updatePlaneTable(self.time)
+        self.locationTable.updateLocationTable(self.time)
 
 class TimeEntry(tk.Frame):
     def __init__(self, isPaused, startTime = 0, endTime = 1440, master = None):
@@ -329,14 +335,79 @@ class PlaneTable(tk.Frame):
                 currentRow[j].config(text = "")
                 
         self.update()
-        
-class ConnectionTable(tk.Frame):
-    def __init__(self, connections, time = 0, master = None, row = 1, column = 5):
+
+# TODO, LocationTable makes the 'stupid' assumption every location has the same amount of connections, fix?  
+class LocationTable(tk.Frame):
+    def __init__(self, locations, time = 0, master = None):
         tk.Frame.__init__(self, master, bg = "black", colormap = "new")
-        self.grid(row = row, column = column)
         self.master = master
-        self.connections = connections
+        
+        if len(locations) == 0:
+            raise ValueError("No locations found to display, len(locations) == 0")
+        
+        self.locations = locations
         self.time = time
+        self.currentLocationNum = 0
+        self.currentLocation = self.locations[self.currentLocationNum]
+        self.tableEntries = []
+        
+        self._createLocationTable()
+        
+    def _createLocationTable(self):
+        self.titleLabel = tk.Label(self, text = str(self.currentLocation), borderwidth = 0)
+        self.titleLabel.grid(row = 0, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
+        
+        self.buttonFrame = tk.Frame(self)
+        self.buttonFrame.grid(row = 1, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
+         
+        self.previousLocationButton = tk.Button(self.buttonFrame, text = "Previous Location",
+                                              command = self.previousLocation, width = 18)
+        self.previousLocationButton.grid(row = 0, column = 0, sticky = "nsew", padx = 1, pady = 1)
+        
+        self.nextLocationButton = tk.Button(self.buttonFrame, text = "Next Location",
+                                          command = self.nextLocation, width = 18)
+        self.nextLocationButton.grid(row = 0, column = 1, sticky = "nsew", padx = 1, pady = 1)
+        
+        i = 0
+        for connection in self.currentLocation.getConnections():
+            currentRow = []
+            
+            label = tk.Label(self, text = str(connection), borderwidth = 0, width = 30)
+            label.grid(row = i + 2, column = 0, sticky = "nsew", padx = 1, pady = 1)
+            currentRow.append(label)
+            
+            label = tk.Label(self, text = str(connection.getPotentialPassengersAt(self.time)),
+                              borderwidth = 0, width = 6)
+            label.grid(row = i + 2, column = 1, sticky = "nsew", padx = 1, pady = 1)
+            currentRow.append(label)
+            
+            self.tableEntries.append(currentRow)
+            i += 1
+    
+    def updateLocationTable(self, time):
+        self.time = time
+        self.titleLabel.config(text = str(self.currentLocation))
+        
+        i = 0
+        for connection in self.currentLocation.getConnections():
+            currentRow = self.tableEntries[i]
+            
+            currentRow[0].config(text = str(connection))
+            currentRow[1].config(text = str(connection.getPotentialPassengersAt(self.time)))
+            
+            i += 1
+     
+    def nextLocation(self):
+        self._setLocation((self.currentLocationNum + 1) % len(self.locations))
+        
+    def previousLocation(self):
+        locationsLength = len(self.locations)
+        self._setLocation((locationsLength + (self.currentLocationNum - 1)) % locationsLength)
+        
+    def _setLocation(self, locationNum):
+        self.currentLocationNum = locationNum
+        self.currentLocation = self.locations[self.currentLocationNum]
+        self.updateLocationTable(self.time)
         
 if __name__ == "__main__":
     start = dt.datetime.now()
@@ -350,7 +421,7 @@ if __name__ == "__main__":
     print "Time taken over pre simulation", end - start
      
     start = dt.datetime.now()
-    #simulation.run() # pre computation of the entire simulation, speeds the visualization up
+    simulation.run() # pre computation of the entire simulation, speeds the visualization up
     end = dt.datetime.now()
     print "Time taken over simulation", end - start
     

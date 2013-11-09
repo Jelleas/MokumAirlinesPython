@@ -120,6 +120,12 @@ class Simulation(object):
     def getPlanes(self):
         return self.flightPlan.getPlanes()
     
+    def getConnections(self):
+        return self.flightPlan.getConnections()
+    
+    def getLocations(self):
+        return self.map.getLocations()
+    
     def preSimulation(self):
         self._testPassengers()
         self._testFuel()
