@@ -99,7 +99,7 @@ class SimulationGUI(tk.Frame):
         self.locationTable.grid(row = 1, column = 6)
 
     def drawSimulation(self):
-        self.simulationLog = self.simulation.getSimulationLogAt(self.time) 
+        self.simulationLog = self.simulation.getSimulationLogAt(self.time)
         planeToLog = self.simulationLog.getPlaneToLog()
         
         for figure in self.planeFigures:
@@ -312,8 +312,9 @@ class PlaneTable(tk.Frame):
             self.tableEntries.append(currentRow)
                 
     def updatePlaneTable(self, simulationLog):
+        self.simulationLog = simulationLog
         self.time = simulationLog.getTime()
-        
+
         plane = self.currentPlane
         planeLog = self.simulationLog.getPlaneLog(plane)
         

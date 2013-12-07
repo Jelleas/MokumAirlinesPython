@@ -94,7 +94,6 @@ class Simulation(object):
         :returns: log containing the data of the simulation at the requested time.
         :rtype: SimulationLog
         """
-        time = int(time)
         if time > self.endTime:
             raise ValueError("Requesting simulationLog at time: " + str(time) +\
                               " which is beyond endtime: " + str(self.endTime))
@@ -455,23 +454,14 @@ class FlightPlan(object):
         return self.planes
     
     def getConnectionToLogAt(self, time):
-        time = int(time)
-        connectionToLog = {}
-        for connection in self.connections:
-            connectionToLog[connection] = connection.getConnectionLogAt(time, self.planes)
-        return connectionToLog
+        return {con : con.getConnectionLogAt(time, self.planes) for con in self.connections}
     
     def getPlaneToLogAt(self, time):
-        time = int(time)
-        planeToLog = {}
-        for plane in self.planes:
-            planeToLog[plane] = plane.getPlaneLogAtNew(time)
-        return planeToLog
+        return {plane : plane.getPlaneLogAtNew(time) for plane in self.planes}
 
     def getTrips(self):
-        planes = self.getPlanes()
         trips = []
-        for plane in planes:
+        for plane in self.planes:
             trips += plane.getTrips()
         return trips
 
@@ -767,9 +757,7 @@ class Trip(object):
         return endTime
     
     def getEndTimeWithoutGroundTime(self, plane):
-        endTime = self.startTime
-        endTime += self.connection.getDistance() / plane.getSpeed() * 60
-        return endTime    
+        return self.startTime + self.connection.getDistance() / plane.getSpeed() * 60
 
     def getRefuel(self):
         return self.refuel
