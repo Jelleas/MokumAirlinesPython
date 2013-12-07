@@ -431,7 +431,7 @@ class FlightPlan(object):
         if connection not in self.connections:
             self.connections.append(connection)
         else:
-            raise ValueError("Connection: " + str(connection) + "already exists in the flightplan.")
+            raise ValueError("Connection: " + str(connection) + " already exists in the flightplan.")
      
     def addConnections(self, connections):
         for connection in connections:
@@ -441,7 +441,7 @@ class FlightPlan(object):
         if plane not in self.planes:
             self.planes.append(plane)
         else:
-            raise ValueError("Plane: " + str(plane) + "already exists in the flightplan.")
+            raise ValueError("Plane: " + str(plane) + " already exists in the flightplan.")
         
     def addPlanes(self, planes):
         for plane in planes:
@@ -468,7 +468,6 @@ class FlightPlan(object):
 class Plane(object):
     """
     Representation of a plane, which can travel over planned trips.
-    The plane keeps track of its states ...,i-1,i,i+1,... in planeLogs.
     """
     
     def __init__(self, name, maxPassengers, planeType, home, speed, maxFuel):
@@ -478,7 +477,7 @@ class Plane(object):
         self.speed = int(speed)
         self.maxFuel = int(maxFuel)
         self.home = home
-        self.trips = {} #startTimeToTrip
+        self.trips = {} # startTimeToTrip
         self.timeToPlaneLog = {}
         
     def __str__(self):
