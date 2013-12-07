@@ -1,3 +1,4 @@
+from __future__ import division
 import math
 
 resourcesFilePath = "resources"
@@ -64,8 +65,6 @@ class Simulation(object):
         self.noFlyStart = defaultNoFlyStart
         self.noFlyEnd = defaultNoFlyEnd
         
-        self.timeToSimulationLog = {}
-        
         self.home = None
         self._loadData()
         if self.home == None:
@@ -79,9 +78,10 @@ class Simulation(object):
         """
         planes = self.flightPlan.getPlanes()
         for time in range(self.startTime, self.endTime):
-            self.getSimulationLogAt(time) # automatically creates a simulationLog if it does not exist.
+            simulationLog = self.getSimulationLogAt(time)
             for plane in planes:
-                plane, "time", time, plane.getCoordsAt(time), plane.getFuelAt(time)
+                planeLog = simulationLog.getPlaneLog(plane)
+                print plane, "time", time, planeLog.getCoords(), planeLog.getFuel()
 
     def getSimulationLogAt(self, time):
         """
@@ -102,15 +102,8 @@ class Simulation(object):
             raise ValueError("Requesting simulationLog at time: " + str(time) +\
                               " which is < 0.")
                
-        simulationLog = self.timeToSimulationLog.get(time, None)
-        if simulationLog == None:
-            if time != 0:
-                self.getSimulationLogAt(time - 1) # create SimulationLogs for all previous states.
-            simulationLog = SimulationLog(self, time, self.flightPlan.getPlaneToLogAt(time), self.flightPlan.getConnectionToLogAt(time))
-            self.timeToSimulationLog[time] = simulationLog
-            
-        return simulationLog
-    
+        return SimulationLog(self, time, self.flightPlan.getPlaneToLogAt(time), self.flightPlan.getConnectionToLogAt(time))
+
     def getStartTime(self):
         return self.startTime
     
@@ -140,7 +133,7 @@ class Simulation(object):
             connections = trip.getPassengerConnections()
             
             for connection in connections:
-                connectionToPassenger[connection] = connection.getPotentialPassengersAt(self.startTime)
+                connectionToPassenger[connection] = connection.getPotentialPassengers()
         
         # calculate number of passengers taken from connections
         for trip in trips:
@@ -150,9 +143,10 @@ class Simulation(object):
                 connectionToPassenger[connection] -= trip.getNumPassengersTo(connection.getEndLocation())
                 
                 if connectionToPassenger[connection] < 0:
+                    numPas = connectionToPassenger[connection] + trip.getNumPassengersTo(connection.getEndLocation())
                     raise ValueError("Illegal passenger subtraction in connection: " + str(connection) +\
-                                      ", tried to subtract " + str(trip.getNumPassengers()) +\
-                                       " from " + str(connectionToPassenger[connection]))
+                                      ", tried to subtract " + str(trip.getNumPassengers(connection)) +\
+                                       " from " + str(numPas))
     
     def _testPlanes(self):
         for plane in self.flightPlan.getPlanes():
@@ -408,6 +402,9 @@ class SimulationLog(object):
     def getTime(self):
         return self.time
     
+    def getPlaneLog(self, plane):
+        return self.planeToLog.get(plane, None)
+
     def getPlaneToLog(self):
         return self.planeToLog
     
@@ -461,14 +458,14 @@ class FlightPlan(object):
         time = int(time)
         connectionToLog = {}
         for connection in self.connections:
-            connectionToLog[connection] = connection.getConnectionLogAt(time)
+            connectionToLog[connection] = connection.getConnectionLogAt(time, self.planes)
         return connectionToLog
     
     def getPlaneToLogAt(self, time):
         time = int(time)
         planeToLog = {}
         for plane in self.planes:
-            planeToLog[plane] = plane.getPlaneLogAt(time)
+            planeToLog[plane] = plane.getPlaneLogAtNew(time)
         return planeToLog
 
     def getTrips(self):
@@ -509,202 +506,117 @@ class Plane(object):
         self.trips[startTime] = trip
         
     def getCoordsAt(self, time):
-        return self.getPlaneLogAt(time).getCoords()
+        return self.getPlaneLogAtNew(time).getCoords()
+        #return self.getPlaneLogAt(time).getCoords()
     
     def getFuelAt(self, time):
-        return self.getPlaneLogAt(time).getFuel()
+        return self.getPlaneLogAtNew(time).getFuel()
+        #return self.getPlaneLogAt(time).getFuel()
         
     def getPassengersAt(self, time):
-        return self.getPlaneLogAt(time).getPassengers()
+        return self.getPlaneLogAtNew(time).getPassengers()
+        #return self.getPlaneLogAt(time).getPassengers()
     
     def getPassengerKilometersAt(self, time):
-        return self.getPlaneLogAt(time).getPassengerKilometers()
-        
-    def getPlaneLogAt(self, time):
-        """
-        Recursively calculate the plane log at time. As the current state i of the plane is dependent on state i-1,
-        we backtrack till a known state and calculate upwards from there. For example if time = 500 and no state is known,
-        all 0-499 states are calculated. All plane logs created are stored.
-        :param time: requested time, int > 0
-        :returns: log containing the data of the plane at the requested time.
-        :rtype: PlaneLog
-        """
-        if time < 0:
-            raise ValueError("This is not the delorean, plane: " + str(self) + " cannot go to time: " + str(time))     
-        
-        if len(self.trips) == 0:
-            self.timeToPlaneLog[time] = PlaneLog(self, {}, time, self.maxFuel, self.home.getCoords(), None)
-        
-        return self._getPlaneLogAtRec(time)
-           
-    def _getPlaneLogAtRec(self, time):
-        """
-        Recursively calculate the plane log at time. As the current state i of the plane is dependent on state i-1,
-        we backtrack till a known state and calculate upwards from there. For example if time = 500 and no state is known,
-        all 0-499 states are calculated. All planelogs created at states are stored.
-        Assumes trips is not empty.
-        :param time: requested time, int > 0 (unchecked)
-        :returns: log containing the data of the plane at the requested time.
-        :rtype: PlaneLog
-        """
-        
-        time = int(time)
-        
-        planeLog = self.timeToPlaneLog.get(time, None)
-        
-        # base case
-        if planeLog != None:
-            return planeLog
-        
-        # base case
-        if time == 0:
-            startTime = min(self.trips.keys())
-            trip = self.trips[startTime]
-            
-            coords = trip.getConnection().getStartLocation().getCoords()
-            
-            if startTime < 1:
-                
-                # subtract passengers boarding plane from possible passengers on connections.
-                trip.subtractPassengers()
-                
-                self.timeToPlaneLog[time] = PlaneLog(self, trip.getPassengers(), time, self.maxFuel, coords, trip)
-            else:
-                self.timeToPlaneLog[time] = PlaneLog(self, {}, time, self.maxFuel, coords, None)
-        
-        # recursive step       
-        else:        
-            oldPlaneLog = self._getPlaneLogAtRec(time - 1)        
-            newTrip = self._getTripWithStartBetween(time, time + 1)
-            
-            if newTrip == None:
-                self.timeToPlaneLog[time] = self._createNextPlaneLog(oldPlaneLog)
-            else:
-                # if last state was last minute of trip, calculate trip's end; set oldplanelog(i-1) to newplanlog(i)
-                # for last minute changes (pun intended). Else trip collision occurred, raise exception.
-                if oldPlaneLog.getTrip() != None:
-                    newPlaneLog = self._createNextPlaneLog(oldPlaneLog)
-                    
-                    if newPlaneLog.getTrip() == None:
-                        oldPlaneLog = newPlaneLog
-                    else:
-                        raise ValueError("Trip collision with plane: " + str(self) + " at time: " + str(time) +\
-                                         ", trip: " + str(newPlaneLog.getTrip()) + " collided with " + str(newTrip))
-
-                connection = newTrip.getConnection()
-                startLocation = connection.getStartLocation()
-                
-                if oldPlaneLog.getCoords() != startLocation.getCoords():
-                    raise ValueError("plane: " + str(self) + ", Start coords of new trip: " + str(startLocation.getCoords()) +\
-                                      " does not match current coords: " + str(oldPlaneLog.getCoords()))
-  
-                # subtract passengers boarding plane from possible passengers on connections.
-                newTrip.subtractPassengers()
-                
-                passengers = self._combinePassengers(oldPlaneLog.getPassengers(), newTrip.getPassengers())
-                
-                if sum(passengers.values()) > self.maxPassengers:
-                    raise ValueError("Plane: " + str(self) + " cannot carry more than " + str(self.maxPassengers) +\
-                              " Passengers, requested: " + str(sum(passengers.values())) + " at time: " + str(time))
-                
-                self.timeToPlaneLog[time] = PlaneLog(self, passengers, time, oldPlaneLog.getFuel(),
-                                                      startLocation.getCoords(), newTrip, 
-                                                      passengerKilometers = oldPlaneLog.getPassengerKilometers())
-        
-        return self.timeToPlaneLog[time]
+        return self.getPlaneLogAtNew(time).getPassengerKilometers()
+        #return self.getPlaneLogAt(time).getPassengerKilometers()
     
-    def _createNextPlaneLog(self, oldPlaneLog):
+    def getPlaneLogAtNew(self, time):
         """
-        Creates a new planelog at i dependent on the previous planelog at i-1 given. NOTE it is solely
-        based on the previous planelog, thus new Trips planned at i are not taken into account! Depending
-        on the trip at i-1 new coordinates for the plane are calculated and fuel is adjusted in
-        'real time', meaning not just at the end of the trip. At the end of a trip, fuel is cast
-        to an integer for ease of calculation in planning, however during the trip fuel is represented
-        as a floating point number.
-        :param oldPlaneLog: previous planelog at time i-1
-        :returns: new planelog at time i based on time i-1
-        :rtype: PlaneLog
+        Get a PlaneLog of this plane at time.
         """
-        
-        oldCoords = oldPlaneLog.getCoords()
-        time = oldPlaneLog.getTime() + 1
-        oldTrip = oldPlaneLog.getTrip()
-        
-        if oldTrip == None:
-            return PlaneLog(self, oldPlaneLog.getPassengers(), time, oldPlaneLog.getFuel(),
-                             oldCoords, None, passengerKilometers = oldPlaneLog.getPassengerKilometers())
-        
-        oldConnection = oldTrip.getConnection()
-        oldStartCoords = oldConnection.getStartLocation().getCoords()
-        oldEndCoords = oldConnection.getEndLocation().getCoords()
-        oldLandTime = oldPlaneLog.getLandTime()
+        if len(self.trips) == 0:
+            raise ValueError("No trips planned for plane %s" %(self))
 
-        # if end already reached, check if still busy with trip; return new PlaneLog
-        if oldLandTime >= 0:
-            tripStopTime = oldLandTime + waitAtAirport
-            
-            if oldTrip.getRefuel():
-                tripStopTime += waitAtRefuel
-                
-            passengerKilometers = oldPlaneLog.getPassengerKilometers()
-            if time >= tripStopTime:
-                passengers = oldPlaneLog.getPassengers()
-                
-                if oldTrip.getRefuel():
-                    return PlaneLog(self, passengers, time, self.maxFuel, oldCoords, None, 
-                                    passengerKilometers = passengerKilometers)
+        # find all trips that have taken place plus the one taking place (if there is one)
+        tripsSorted = sorted(self.trips.values(), key = lambda trip : trip.getStartTime())
+        trips = filter(lambda trip : time >= trip.getStartTime(), tripsSorted)
+
+        currentTrip = None # the trip the plane is undertaking right now at time.
+        passengers = {}
+        fuel = self.maxFuel
+        passengerKilometers = 0
+
+        # if no trips took place at time, set coords (to start coords). 
+        # else: calculate new coords, adjust fuel etc.
+        if len(trips) == 0:
+            coords = self.calculatePlaneCoords(time, tripsSorted[0])
+        else:
+            coords = self.calculatePlaneCoords(time, trips[-1])
+
+            # for all trips that took place at time, substract fuel.
+            for trip in trips[:-1]:
+                if trip.getRefuel():
+                    fuel = self.maxFuel
                 else:
-                    return PlaneLog(self, passengers, time, oldPlaneLog.getFuel(), oldCoords, None, 
-                                    passengerKilometers = passengerKilometers)
-            else:
-                return PlaneLog(self, oldPlaneLog.getPassengers(), time, oldPlaneLog.getFuel(),
-                                 oldCoords, oldTrip, oldLandTime, passengerKilometers = passengerKilometers)
+                    fuel -= trip.getDistance()
+
+                passengers = self._combinePassengers(passengers, trip.getPassengers())
+
+                passengerKilometers += self.removePassengers(passengers, trip.getEndLocation())
+
+            # the last trip, which might take place right now at time.
+            trip = trips[-1]
+            passengers = self._combinePassengers(passengers, trip.getPassengers())
+
+            # if plane is in air at time, update fuel depending on distance.
+            if time < trip.getEndTimeWithoutGroundTime(self):
+                fuel -= (time - trip.getStartTime()) * (self.speed / 60)
+                currentTrip = trip
             
-        # else, calculate new coords on trip; return new PlaneLog
-        else:   
-            distance = oldConnection.getDistance()
+            # if plane is still busy on a trip, but not in air adjust fuel.
+            elif time < trip.getEndTime(self):
+                fuel -= trip.getDistance()
+                currentTrip = trip
+
+            # else plane has finished last trip, check if it has refueled and adjust fuel.
+            else:
+                if trip.getRefuel():
+                    fuel = self.maxFuel
+                else:
+                    fuel -= trip.getDistance()
+
+                passengerKilometers += self.removePassengers(passengers, trip.getEndLocation())
+        
+        return PlaneLog(self, passengers, time, fuel, coords, currentTrip, passengerKilometers = passengerKilometers)
+
+    def calculatePlaneCoords(self, time, trip):
+        connection  =   trip.getConnection()
+        endCoords   =   connection.getEndLocation().getCoords()
+        startCoords =   connection.getStartLocation().getCoords()
+        distance    =   connection.getDistance()
+        startTime   =   trip.getStartTime()
+     
+        if time < startTime:
+            return startCoords
+
+        elif distance / self.speed * 60 < time - startTime:
+            return endCoords
+
+        else:
+            x       =   endCoords[0] - startCoords[0]
+            y       =   endCoords[1] - startCoords[1]
+            alpha   =   math.atan2(y, x)
             
             # Pythagoras, hurray!
-            actualDistance = math.sqrt((oldEndCoords[0] - oldStartCoords[0])**2 + (oldEndCoords[1] - oldStartCoords[1])**2)
+            actualDistance = math.sqrt(x**2 + y**2)
             
-            speed = (self.speed / 60.0)
+            speed = (self.speed / 60) * (time - startTime)
             actualSpeed = (speed / distance) * actualDistance # coords do not match the distance in trips, hence actualSpeed
-            x = oldEndCoords[0] - oldStartCoords[0]
-            y = oldEndCoords[1] - oldStartCoords[1]
-            alpha = math.atan2(y, x)
-            
-            # x_i, y_i = x_(i-1) + speed * cos(alpha), y_(i-1) + speed * sin(alpha)
-            newCoords = (oldCoords[0] + actualSpeed * math.cos(alpha), oldCoords[1] + actualSpeed * math.sin(alpha))
-            
-            hasLanded = False
-            
-            # if plane flew over the end location, set coords to match end location, thus plane has landed.
-            # adjust fuel spend to match actual distance travelled, thus not 'wasting' fuel.
-            if self._isBetween(oldStartCoords, newCoords, oldEndCoords):
-                newCoords = oldEndCoords
-                newFuel = self.getFuelAt(oldTrip.getStartTime()) - oldConnection.getDistance()
-                hasLanded = True
-            else:
-                newFuel = oldPlaneLog.getFuel() - speed
-            
-            if newFuel < 0:
-                raise ValueError("Plane: " + str(self) + " crashed at time: " + str(time) + ", reason fuel: " + str(newFuel))
-            
-            passengerKilometers = oldPlaneLog.getPassengerKilometers()
-            
-            # if arrived (landed) at end location
-            if hasLanded:
-                passengers = oldPlaneLog.getPassengers().copy()
-                
-                # remove passengers from plane and update passengerKilometers
-                passengerKilometers += self._arrivedAt(oldTrip.getEndLocation(), passengers)
-                
-                return PlaneLog(self, passengers, time, newFuel, newCoords, oldTrip,
-                                 landTime = time, passengerKilometers = passengerKilometers)
-            else:
-                return PlaneLog(self, oldPlaneLog.getPassengers(), time, newFuel, newCoords, oldTrip, 
-                                passengerKilometers = passengerKilometers)
-       
+
+            # x_i, y_i = x_(i-1) + speed * cos(alpha), y_(i-1)  speed * sin(alpha)
+            return (startCoords[0] + actualSpeed * math.cos(alpha), startCoords[1] + actualSpeed * math.sin(alpha))
+
+    def removePassengers(self, passengers, endLocation):
+        passengerKilometers = 0
+
+        for connection in passengers.copy():
+            if connection.getEndLocation() == endLocation:
+                passengerKilometers += passengers[connection] * connection.getDistance()
+                del passengers[connection]
+
+        return passengerKilometers
+
     # source: http://stackoverflow.com/questions/328107/how-can-you-determine-a-point-is-between-two-other-points-on-a-line-segment   
     def _isBetween(self, a, b, c):
         """Check if c is on the line segment a, b"""
@@ -728,8 +640,7 @@ class Plane(object):
               for connection in set(passengers1)|set(passengers2))
         
     def _getTripWithStartBetween(self, lowerbound, upperbound):
-        startTimes = self.trips.keys()
-        for startTime in startTimes:
+        for startTime in self.trips:
             if lowerbound <= startTime < upperbound:
                 return self.trips[startTime]
         return None
@@ -788,14 +699,12 @@ class PlaneLog(object):
     - landTime int, time plane has landed, -1 if plane not on trip or in the 'air'.
     """
     
-    def __init__(self, plane, passengers, time, fuel, coords, trip, 
-                 landTime = -1, passengerKilometers = 0):
+    def __init__(self, plane, passengers, time, fuel, coords, trip, passengerKilometers = 0):
         self.plane = plane
         self.time = time
         self.fuel = fuel
         self.coords = coords
         self.trip = trip
-        self.landTime = landTime
         self.passengerKilometers = passengerKilometers
         self.passengers = passengers # {connection:numPassengers}
         
@@ -813,9 +722,6 @@ class PlaneLog(object):
     
     def getCoords(self):
         return self.coords
-    
-    def getLandTime(self):
-        return self.landTime
     
     def getPassengers(self):
         return self.passengers
@@ -849,7 +755,22 @@ class Trip(object):
         
     def getStartTime(self):
         return self.startTime
+
+    def getEndTime(self, plane):
+        endTime = self.getEndTimeWithoutGroundTime(plane)
+
+        if self.refuel:
+            endTime += 120
+        else:
+            endTime += 60
+
+        return endTime
     
+    def getEndTimeWithoutGroundTime(self, plane):
+        endTime = self.startTime
+        endTime += self.connection.getDistance() / plane.getSpeed() * 60
+        return endTime    
+
     def getRefuel(self):
         return self.refuel
     
@@ -940,20 +861,10 @@ class Connection(object):
         self.startLocation = startLocation
         self.endLocation = endLocation
         self.distance = int(distance)
-        self.timeToConnectionLog = {0:ConnectionLog(self, 0, int(potentialPassengers))}
+        self.potentialPassengers = int(potentialPassengers)
         
     def __str__(self):
         return str(self.startLocation) + " --" + str(self.distance) + "--> " + str(self.endLocation) 
-        
-    def subtractPotentialPassengers(self, numPassengers, time):
-        connectionLog = self.getConnectionLogAt(time)
-        potentialPassengers = connectionLog.getPotentialPassengers()
-        newPotentialPassengers = potentialPassengers - numPassengers
-        if newPotentialPassengers >= 0:
-            self.timeToConnectionLog[time] = ConnectionLog(self, time, newPotentialPassengers)
-        else:
-            raise ValueError("Illegal passenger subtraction in connection: " + str(self) + ", tried to subtract " +\
-                              str(numPassengers) + " from " + str(potentialPassengers))
         
     def getDistance(self):
         return self.distance
@@ -967,18 +878,24 @@ class Connection(object):
     def getLocations(self):
         return self.startLocation, self.endLocation
     
-    def getPotentialPassengersAt(self, time):
-        connectionLog = self.getConnectionLogAt(time)
-        return connectionLog.getPotentialPassengers()
-    
-    def getConnectionLogAt(self, time):
-        timeKeys = sorted(self.timeToConnectionLog.keys())
-        i = 0
-        for timeKey in timeKeys[1:]:
-            if time < timeKey:
-                break  
-            i += 1
-        return self.timeToConnectionLog[timeKeys[i]]
+    def getPotentialPassengers(self):
+        return self.potentialPassengers
+
+    def getPotentialPassengersAt(self, time, planes):
+        return self.getConnectionLogAt(time, planes).getPotentialPassengers()
+
+    def getConnectionLogAt(self, time, planes):
+        potentialPassengers = self.potentialPassengers
+
+        for plane in planes:
+
+            for trip in plane.getTrips():
+                passengers = trip.getPassengers()
+
+                if trip.getStartTime() < time:
+                    potentialPassengers -= passengers.get(self, 0)
+
+        return ConnectionLog(self, time, potentialPassengers)
 
 class ConnectionLog(object):
     def __init__(self, connection, time, potentialPassengers):

@@ -18,7 +18,8 @@ class SimulationGUI(tk.Frame):
         self.time = self.startTime
         self.endTime = self.simulation.getEndTime()
         self.planes = self.simulation.getPlanes()
-        
+        self.simulationLog = self.simulation.getSimulationLogAt(self.time)
+
         if len(self.planes) > maxPlanes:
             raise ValueError("Graphical simulation supports up to " + str(maxPlanes) + " planes. " +\
                               str(len(self.planes)) + " planes given.")
@@ -91,15 +92,15 @@ class SimulationGUI(tk.Frame):
                                     master = self)
         self.timeEntry.grid(row = 0, column = 5)
         
-        self.planeTable = PlaneTable(self.planeToColor, self.time, master = self)
+        self.planeTable = PlaneTable(self.planeToColor, self.simulationLog, master = self)
         self.planeTable.grid(row = 1, column = 5)
 
-        self.locationTable = LocationTable(self.locations, self.time, master = self)
+        self.locationTable = LocationTable(self.locations, self.simulationLog, master = self)
         self.locationTable.grid(row = 1, column = 6)
 
     def drawSimulation(self):
-        simulationLog = self.simulation.getSimulationLogAt(self.time) 
-        planeToLog = simulationLog.getPlaneToLog()
+        self.simulationLog = self.simulation.getSimulationLogAt(self.time) 
+        planeToLog = self.simulationLog.getPlaneToLog()
         
         for figure in self.planeFigures:
             self.canvas.delete(figure)
@@ -126,8 +127,8 @@ class SimulationGUI(tk.Frame):
             
         self.canvas.update()
 
-        self.planeTable.updatePlaneTable(self.time)
-        self.locationTable.updateLocationTable(self.time)
+        self.planeTable.updatePlaneTable(self.simulationLog)
+        self.locationTable.updateLocationTable(self.simulationLog)
 
 class TimeEntry(tk.Frame):
     def __init__(self, isPaused, startTime = 0, endTime = 1440, master = None):
@@ -137,7 +138,7 @@ class TimeEntry(tk.Frame):
         self.time = self.startTime
         self.endTime = endTime
         self.isPaused = isPaused
-        self.timeStep = 1
+        self.timeStep = .1
         self._createTimeEntry()
         
     def _createTimeEntry(self):
@@ -183,16 +184,16 @@ class TimeEntry(tk.Frame):
         return self.time
     
     def speedUp(self):
-        self.timeStep += 1
+        self.timeStep += .1
         
         if self.timeStep == 0:
-            self.timeStep += 1
+            self.timeStep += .1
         
     def slowDown(self):
-        self.timeStep -= 1
+        self.timeStep -= .1
         
         if self.timeStep == 0:
-            self.timeStep -= 1
+            self.timeStep -= .1
     
     def _updateTimeEntry(self):
         # TODO ugly solution, fix?
@@ -215,13 +216,13 @@ class TimeEntry(tk.Frame):
     
     def setTime(self):
         if self._isValidTime():
-            self.time = int(self.timeEntry.get())
+            self.time = float(self.timeEntry.get())
         else:
             raise ValueError("Illegal time: " + self.timeEntry.get() + " set.")
         
     def _isValidTime(self):
         try:
-            time = int(self.timeEntry.get())
+            time = float(self.timeEntry.get())
         except ValueError:
             return False
         
@@ -231,14 +232,15 @@ class TimeEntry(tk.Frame):
             return False
                 
 class PlaneTable(tk.Frame):
-    def __init__(self, planeToColor, time = 0, master = None):
+    def __init__(self, planeToColor, simulationLog, master = None):
         tk.Frame.__init__(self, master, bg = "black", colormap = "new")
         self.master = master
         self.planes = planeToColor.keys()
         self.planeToColor = planeToColor
         self.currentPlaneNum = 0
         self.currentPlane = self.planes[self.currentPlaneNum]
-        self.time = time
+        self.time = simulationLog.getTime()
+        self.simulationLog = simulationLog
         self._createPlaneTable()
         
     def nextPlane(self):
@@ -251,10 +253,12 @@ class PlaneTable(tk.Frame):
     def _setPlane(self, planeNum):
         self.currentPlaneNum = planeNum
         self.currentPlane = self.planes[self.currentPlaneNum]
-        self.updatePlaneTable(self.time)
+        self.updatePlaneTable(self.simulationLog)
         
     def _createPlaneTable(self):
         plane = self.currentPlane
+        planeLog = self.simulationLog.getPlaneLog(plane)
+
         self.tableEntries = []
         
         self.titleLabel = tk.Label(self, text = str(plane), borderwidth = 0, fg = self.planeToColor[self.currentPlane])
@@ -269,15 +273,15 @@ class PlaneTable(tk.Frame):
         self.nextPlaneButton = tk.Button(self.buttonFrame, text = "Next Plane", command = self.nextPlane, width = 18)
         self.nextPlaneButton.grid(row = 0, column = 1, sticky = "nsew", padx = 1, pady = 1)
        
-        passengerKilometersString = str("Passenger Kilometers: %d" %(plane.getPassengerKilometersAt(self.time)))
+        passengerKilometersString = str("Passenger Kilometers: %d" %(planeLog.getPassengerKilometers()))
         self.passengerKilometersLabel = tk.Label(self, text = passengerKilometersString, borderwidth = 0)
         self.passengerKilometersLabel.grid(row = 2, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
         
-        self.fuelLabel = tk.Label(self, text = str("Fuel: %.2f" %(plane.getFuelAt(self.time))), borderwidth = 0)
+        self.fuelLabel = tk.Label(self, text = str("Fuel: %.2f" %(planeLog.getFuel())), borderwidth = 0)
         self.fuelLabel.grid(row = 3, column = 0, columnspan = 2, sticky = "nsew", padx = 1, pady = 1)
         
         # passengers {connection:numPassengers} as list of tuples [(connection, numPassengers)]
-        passengers = plane.getPassengersAt(self.time).items()
+        passengers = planeLog.getPassengers().items()
         passengersLength = len(passengers)
         
         for i in range(passengersLength):
@@ -307,18 +311,19 @@ class PlaneTable(tk.Frame):
             
             self.tableEntries.append(currentRow)
                 
-    def updatePlaneTable(self, time):
-        self.time = time
+    def updatePlaneTable(self, simulationLog):
+        self.time = simulationLog.getTime()
         
         plane = self.currentPlane
+        planeLog = self.simulationLog.getPlaneLog(plane)
         
         self.titleLabel.config(text = str(plane), fg = self.planeToColor[self.currentPlane])
-        passengerKilometersString = str("Passenger Kilometers: %d" %(plane.getPassengerKilometersAt(self.time)))
+        passengerKilometersString = str("Passenger Kilometers: %d" %(planeLog.getPassengerKilometers()))
         self.passengerKilometersLabel.config(text = passengerKilometersString)
-        self.fuelLabel.config(text = str("Fuel: %.2f" %(plane.getFuelAt(self.time))))
+        self.fuelLabel.config(text = str("Fuel: %.2f" %(planeLog.getFuel())))
         
         # passengers {connection:numPassengers} as list of tuples [(connection, numPassengers)]
-        passengers = plane.getPassengersAt(self.time).items()
+        passengers = planeLog.getPassengers().items()
         passengersLength = len(passengers)
         
         for i in range(passengersLength):
@@ -338,7 +343,7 @@ class PlaneTable(tk.Frame):
 
 # TODO, LocationTable makes the 'stupid' assumption every location has the same amount of connections, fix?  
 class LocationTable(tk.Frame):
-    def __init__(self, locations, time = 0, master = None):
+    def __init__(self, locations, simulationLog, master = None):
         tk.Frame.__init__(self, master, bg = "black", colormap = "new")
         self.master = master
         
@@ -346,7 +351,8 @@ class LocationTable(tk.Frame):
             raise ValueError("No locations found to display, len(locations) == 0")
         
         self.locations = locations
-        self.time = time
+        self.time = simulationLog.getTime()
+        self.simulationLog = simulationLog
         self.currentLocationNum = 0
         self.currentLocation = self.locations[self.currentLocationNum]
         self.tableEntries = []
@@ -368,34 +374,33 @@ class LocationTable(tk.Frame):
                                           command = self.nextLocation, width = 18)
         self.nextLocationButton.grid(row = 0, column = 1, sticky = "nsew", padx = 1, pady = 1)
         
-        i = 0
-        for connection in self.currentLocation.getConnections():
+        connectionToLog = self.simulationLog.getConnectionToLog()
+        for i, connection in enumerate(self.currentLocation.getConnections()):
             currentRow = []
             
             label = tk.Label(self, text = str(connection), borderwidth = 0, width = 30)
             label.grid(row = i + 2, column = 0, sticky = "nsew", padx = 1, pady = 1)
             currentRow.append(label)
             
-            label = tk.Label(self, text = str(connection.getPotentialPassengersAt(self.time)),
+            label = tk.Label(self, text = str(connectionToLog[connection].getPotentialPassengers()),
                               borderwidth = 0, width = 6)
             label.grid(row = i + 2, column = 1, sticky = "nsew", padx = 1, pady = 1)
             currentRow.append(label)
             
             self.tableEntries.append(currentRow)
-            i += 1
     
-    def updateLocationTable(self, time):
-        self.time = time
+    def updateLocationTable(self, simulationLog):
+        self.time = simulationLog.getTime()
+        self.simulationLog = simulationLog
         self.titleLabel.config(text = str(self.currentLocation))
         
-        i = 0
-        for connection in self.currentLocation.getConnections():
+        connectionToLog = simulationLog.getConnectionToLog()
+
+        for i, connection in enumerate(self.currentLocation.getConnections()):
             currentRow = self.tableEntries[i]
             
             currentRow[0].config(text = str(connection))
-            currentRow[1].config(text = str(connection.getPotentialPassengersAt(self.time)))
-            
-            i += 1
+            currentRow[1].config(text = str(connectionToLog[connection].getPotentialPassengers()))
      
     def nextLocation(self):
         self._setLocation((self.currentLocationNum + 1) % len(self.locations))
@@ -407,7 +412,7 @@ class LocationTable(tk.Frame):
     def _setLocation(self, locationNum):
         self.currentLocationNum = locationNum
         self.currentLocation = self.locations[self.currentLocationNum]
-        self.updateLocationTable(self.time)
+        self.updateLocationTable(self.simulationLog)
         
 if __name__ == "__main__":
     start = dt.datetime.now()
@@ -420,10 +425,10 @@ if __name__ == "__main__":
     end = dt.datetime.now()
     print "Time taken over pre simulation", end - start
      
-    start = dt.datetime.now()
-    simulation.run() # pre computation of the entire simulation, speeds the visualization up
-    end = dt.datetime.now()
-    print "Time taken over simulation", end - start
+    #start = dt.datetime.now()
+    #simulation.run() # pre computation of the entire simulation, speeds the visualization up
+    #end = dt.datetime.now()
+    #print "Time taken over simulation", end - start
     
     image = tk.PhotoImage(file = "resources/europe.gif")
     gui = SimulationGUI(simulation, master = master)
