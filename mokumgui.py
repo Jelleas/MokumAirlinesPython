@@ -4,7 +4,6 @@ import Tkinter as tk
 import datetime as dt
 from mokum import Simulation
 
-master = tk.Tk()
 colors = ["#ff0000", "#00ff00", "#0000ff", "#008000", "#ff00ff", "#00ffff"]
 maxPlanes = len(colors)
 deviationX = 10 # deviation from x coordinate to image
@@ -454,7 +453,7 @@ class LocationTable(tk.Frame):
         
 if __name__ == "__main__":
     start = dt.datetime.now()
-    simulation = Simulation((500, 500))
+    simulation = Simulation()
     end = dt.datetime.now()
     print "Time taken over simulation initialization ", end - start
     
@@ -462,12 +461,9 @@ if __name__ == "__main__":
     simulation.preSimulation()
     end = dt.datetime.now()
     print "Time taken over pre simulation", end - start
-     
-    #start = dt.datetime.now()
-    #simulation.run() # pre computation of the entire simulation, speeds the visualization up
-    #end = dt.datetime.now()
-    #print "Time taken over simulation", end - start
     
+    master = tk.Tk()
+
     image = tk.PhotoImage(file = "resources/europe.gif")
     gui = SimulationGUI(simulation, master = master)
     gui.master.title('Mokum Airlines')

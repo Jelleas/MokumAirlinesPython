@@ -57,7 +57,7 @@ class Simulation(object):
     - A plane cannot be stalled in air to wait for the no fly zone to pass.
     """
     
-    def __init__(self, dimensions):
+    def __init__(self):
         self.flightPlan = FlightPlan()
         self.startTime = defaultStartTime
         self.endTime = defaultEndTime
@@ -934,5 +934,5 @@ class Location(object):
         print ', '.join([str(connection) for connection in self.connections])
 
 if __name__ == "__main__":
-    s = Simulation((500, 500));
+    s = Simulation();
     s.run()
