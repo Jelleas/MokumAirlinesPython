@@ -3,7 +3,7 @@ from __future__ import division
 from mokum import Simulation
 import pylab
 
-def plotFuel(simulation):
+def plotFuel(simulation, fileName = 'fuel'):
 	"""
 	produces a plot of the fuel in the planes over the simulation with timesteps
 	of 1 minute.
@@ -23,14 +23,14 @@ def plotFuel(simulation):
 			planeToFuel[plane].append(planeToLog[plane].getFuel())
 
 	for plane in planes:
-		pylab.plot(range(len(planeToFuel[plane])), planeToFuel[plane], label=str(plane))
+		pylab.plot(range(len(planeToFuel[plane])), planeToFuel[plane], label = str(plane))
 
 	pylab.title("Fuel in planes over the course of the simulation.")
-	pylab.legend(loc="upper right")
+	pylab.legend(loc = "upper right")
 	pylab.xlabel("Time (min)")
 	pylab.ylabel("Fuel (km)")
 	pylab.ylim(bottom = 0)
-	pylab.savefig('fuel')
+	pylab.savefig(fileName)
 
 	print "Finished plotting fuel."
 

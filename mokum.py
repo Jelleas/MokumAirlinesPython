@@ -815,13 +815,6 @@ class Trip(object):
     
     def getPassengerConnections(self):
         return self.passengers.keys()
-    
-    def subtractPassengers(self):
-        connections = self.getPassengerConnections()
-
-        # subtract passengers boarding plane from possible passengers on connection.
-        for connection in connections:
-            connection.subtractPotentialPassengers(self.passengers[connection], self.startTime) 
             
 class Connection(object):
     def __init__(self, startLocation, endLocation, distance, potentialPassengers):
