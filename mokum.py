@@ -58,7 +58,6 @@ class Simulation(object):
     """
     
     def __init__(self, dimensions):
-        self.map = Map(dimensions)
         self.flightPlan = FlightPlan()
         self.startTime = defaultStartTime
         self.endTime = defaultEndTime
@@ -116,7 +115,7 @@ class Simulation(object):
         return self.flightPlan.getConnections()
     
     def getLocations(self):
-        return self.map.getLocations()
+        return self.flightPlan.getLocations()
     
     def preSimulation(self):
         self._testPassengers()
@@ -272,7 +271,7 @@ class Simulation(object):
                 self.noFlyEnd = int(value)
                 
             elif setting == "home":
-                location = self.map.getLocationByName(value)
+                location = self.flightPlan.getLocationByName(value)
                 if location != None:
                     self.home = location
                 else:
@@ -280,14 +279,14 @@ class Simulation(object):
            
     def _interpretLocations(self, locationsString):
         locationsList = [line.split(",") for line in locationsString.split("\n")]
-        self.map.addLocations([Location(name, locationId, (x, y)) for x, y, locationId, name in locationsList])
+        self.flightPlan.addLocations([Location(name, locationId, (x, y)) for x, y, locationId, name in locationsList])
               
     def _interpretConnections(self, connectionsString, passengersString):
         connectionsList = [line.split(',') for line in connectionsString.split("\n")]
         passengersList = [line.split(',') for line in passengersString.split("\n")]
         
         idToLocation = {}
-        for location in self.map.getLocations():
+        for location in self.flightPlan.getLocations():
             idToLocation[location.getId()] = location
                     
         for i in range(len(connectionsList)):
@@ -316,7 +315,7 @@ class Simulation(object):
         tripNameToEndLocationToNumPassengers = {} # TODO better name?
         for tripName, numPassengers, endLocationName in passengersOnTripList:
   
-            endLocation = self.map.getLocationByName(endLocationName)            
+            endLocation = self.flightPlan.getLocationByName(endLocationName)            
             if endLocation == None:
                 raise ValueError("Unknown location: " + endLocationName + " in " + passengersOnTripFilePath)
             
@@ -336,10 +335,10 @@ class Simulation(object):
             if plane == None:
                 raise ValueError("Unknown plane: " + str(planeName) + " in " + tripsFilePath)
         
-            startLocation = self.map.getLocationByName(origin)
-            endLocation = self.map.getLocationByName(destination)
+            startLocation = self.flightPlan.getLocationByName(origin)
+            endLocation = self.flightPlan.getLocationByName(destination)
             if startLocation == None or endLocation == None:
-                raise ValueError("Either one of the following locations is unknown in map: " + str(origin) + ", " + str(destination))
+                raise ValueError("Either one of the following locations is unknown in flightplan: " + str(origin) + ", " + str(destination))
                 
             connection = startLocation.getConnection(endLocation)
             if connection == None:
@@ -426,6 +425,28 @@ class FlightPlan(object):
     def __init__(self):
         self.planes = []
         self.connections = []
+        self.locations = []
+        self.nameToLocations = {}
+        
+    def addLocation(self, location):
+        if location.getName() not in self.nameToLocations:
+            self.locations.append(location)
+            self.nameToLocations[location.getName()] = location
+        else:
+            raise ValueError("Duplicate location name with name: %s" %(location.getName()))
+            
+    def addLocations(self, locations):
+        for location in locations:
+            self.addLocation(location)
+            
+    def getLocations(self):
+        return self.locations
+    
+    def getLocationByName(self, name):
+        return self.nameToLocations.get(name, None)
+    
+    def printLocations(self):
+        print ', '.join([str(location) for location in self.locations])
     
     def addConnection(self, connection):
         if connection not in self.connections:
@@ -801,43 +822,6 @@ class Trip(object):
         # subtract passengers boarding plane from possible passengers on connection.
         for connection in connections:
             connection.subtractPotentialPassengers(self.passengers[connection], self.startTime) 
-    
-class Map(object):
-    def __init__(self, dimensions):
-        self.dimensions = dimensions
-        self.plain = [[None for i in range(dimensions[0])] for j in range(dimensions[1])]
-        self.locations = []
-        self.nameToLocations = {}
-        
-    def __str__(self):
-        for i in range(self.dimensions[0]):
-            print [str(self.plain[i][j]) for j in range(self.dimensions[1])]
-        
-    def addLocation(self, location):
-        coords = location.getCoords()
-        if 0 <= coords[0] <= self.dimensions[0] and 0 <= coords[1] <= self.dimensions[1]:
-            if self.plain[coords[0]][coords[1]] == None:
-                self.locations.append(location)
-                self.plain[coords[0]][coords[1]] = location
-                self.nameToLocations[location.getName()] = location
-            else:
-                raise ValueError("Coords: " + str(coords) + " already occupied by location: " + str(self.plain[coords[0]][coords[1]]))
-        else:
-            raise ValueError("Location: " + str(location) + " with coords: " + str(location.getCoords()) +\
-                              " does not fit on map with dimensions " + str(self.dimensions))
-            
-    def addLocations(self, locations):
-        for location in locations:
-            self.addLocation(location)
-            
-    def getLocations(self):
-        return self.locations
-    
-    def getLocationByName(self, name):
-        return self.nameToLocations.get(name, None)
-    
-    def printLocations(self):
-        print ', '.join([str(location) for location in self.locations])
             
 class Connection(object):
     def __init__(self, startLocation, endLocation, distance, potentialPassengers):

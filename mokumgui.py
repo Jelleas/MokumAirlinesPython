@@ -1,3 +1,5 @@
+from __future__ import division
+
 import Tkinter as tk
 import datetime as dt
 from mokum import Simulation
@@ -145,30 +147,38 @@ class TimeEntry(tk.Frame):
         self.timeLabel = tk.Label(self, text = "time:")
         self.timeLabel.grid(row = 0, column = 0)
         
-        self.timeEntry = tk.Entry(self)
-        self.timeEntry.delete(0, tk.END)
-        self.timeEntry.insert(0, "time " + str(self.time))
-        
-        if not self.isPaused:
-            self.timeEntry.config(state = "readonly")
-        
-        self.timeEntry.grid(row = 0, column = 2)
-        
-        self.timeEntry.bind("<Return>", self.callbackSetTime)
-        self.speedUpButton = tk.Button(self, text = ">>", command = self.speedUp)
-        self.speedUpButton.grid(row = 0, column = 3)
-        
         self.slowDownButton = tk.Button(self, text = "<<", command = self.slowDown)
         self.slowDownButton.grid(row = 0, column = 1)
-    
+
+        self.timeEntry = tk.Entry(self, width = 15)
+        self.timeEntry.delete(0, tk.END)
+        self.timeEntry.insert(0, str(self.time))
+        if not self.isPaused:
+            self.timeEntry.config(state = "readonly")
+        self.timeEntry.grid(row = 0, column = 2)
+        self.timeEntry.bind("<Return>", self.onSetTime)
+        
+        self.timeStepEntry = tk.Entry(self, width = 10)
+        self.timeStepEntry.delete(0, tk.END)
+        self.timeStepEntry.insert(0, str(self.timeStep))
+        if not self.isPaused:
+            self.timeStepEntry.config(state = "readonly")
+        self.timeStepEntry.grid(row = 0, column = 3)
+        self.timeStepEntry.bind("<Return>", self.onSetTimeStep)
+
+        self.speedUpButton = tk.Button(self, text = ">>", command = self.speedUp)
+        self.speedUpButton.grid(row = 0, column = 4)
+        
     def pause(self, isPaused):
         if self.isPaused != isPaused:
             self.isPaused = isPaused
             
             if self.isPaused:
                 self.timeEntry.config(state = tk.NORMAL)
+                self.timeStepEntry.config(state = tk.NORMAL)
             else:
                 self.timeEntry.config(state = "readonly")
+                self.timeStepEntry.config(state = "readonly")
                 self.setTime()
                 
         return self.time
@@ -186,14 +196,18 @@ class TimeEntry(tk.Frame):
     def speedUp(self):
         self.timeStep += .1
         
-        if self.timeStep == 0:
+        if -.1 < self.timeStep < .1:
             self.timeStep += .1
+
+        self._updateTimeEntry()
         
     def slowDown(self):
         self.timeStep -= .1
         
-        if self.timeStep == 0:
+        if -.1 < self.timeStep < .1:
             self.timeStep -= .1
+
+        self._updateTimeEntry()
     
     def _updateTimeEntry(self):
         # TODO ugly solution, fix?
@@ -202,16 +216,42 @@ class TimeEntry(tk.Frame):
             self.timeEntry.delete(0, tk.END)
             self.timeEntry.insert(0, str(self.time))
             self.timeEntry.config(state = "readonly")
+
+            self.timeStepEntry.config(state = tk.NORMAL)
+            self.timeStepEntry.delete(0, tk.END)
+            self.timeStepEntry.insert(0, str(self.timeStep))
+            self.timeStepEntry.config(state = "readonly")
         else:
             self.timeEntry.delete(0, tk.END)
             self.timeEntry.insert(0, str(self.time))
+
+            self.timeStepEntry.delete(0, tk.END)
+            self.timeStepEntry.insert(0, str(self.timeStep))
             
         self.timeEntry.update()
     
     def getTime(self):
         return self.time
     
-    def callbackSetTime(self, event):
+    def onSetTimeStep(self, event):
+        self.setTimeStep()
+
+    def setTimeStep(self):
+        if self._isValidTimeStep():
+            self.timeStep = float(self.timeStepEntry.get())
+        else:
+            raise ValueError("Illegal timestep " + self.timeStepEntry.get() + " set")
+
+    def _isValidTimeStep(self):
+        try:
+            timeStep = float(self.timeStepEntry.get())
+        except ValueError:
+            return False
+
+        epsilon = .00001
+        return not -epsilon < timeStep < epsilon
+
+    def onSetTime(self, event):
         self.setTime()
     
     def setTime(self):
@@ -226,10 +266,7 @@ class TimeEntry(tk.Frame):
         except ValueError:
             return False
         
-        if self.startTime <= time < self.endTime:
-            return True
-        else:
-            return False
+        return self.startTime <= time < self.endTime
                 
 class PlaneTable(tk.Frame):
     def __init__(self, planeToColor, simulationLog, master = None):
