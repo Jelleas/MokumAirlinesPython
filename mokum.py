@@ -66,7 +66,7 @@ class Simulation(object):
         
         self.home = None
         self._loadData()
-        if self.home == None:
+        if self.home is None:
             raise ValueError("No home location set in config.txt.")
         
         self._testPlanes() # mandatory test, as the simulation will not check for this.
@@ -316,7 +316,7 @@ class Simulation(object):
         for tripName, numPassengers, endLocationName in passengersOnTripList:
   
             endLocation = self.flightPlan.getLocationByName(endLocationName)            
-            if endLocation == None:
+            if endLocation is None:
                 raise ValueError("Unknown location: " + endLocationName + " in " + passengersOnTripFilePath)
             
             endLocationToNumPassengers = tripNameToEndLocationToNumPassengers.get(tripName, {})     
@@ -332,16 +332,16 @@ class Simulation(object):
         
         for tripName, startTime, planeName, origin, destination, refuel in tripsList:
             plane = nameToPlane.get(planeName, None)
-            if plane == None:
+            if plane is None:
                 raise ValueError("Unknown plane: " + str(planeName) + " in " + tripsFilePath)
         
             startLocation = self.flightPlan.getLocationByName(origin)
             endLocation = self.flightPlan.getLocationByName(destination)
-            if startLocation == None or endLocation == None:
+            if startLocation is None or endLocation is None:
                 raise ValueError("Either one of the following locations is unknown in flightplan: " + str(origin) + ", " + str(destination))
                 
             connection = startLocation.getConnection(endLocation)
-            if connection == None:
+            if connection is None:
                 raise ValueError("Connection between: " + str(origin) + ", " + str(destination) + " does not exist.")
             
             # easier to ask for forgiveness than permission
@@ -360,7 +360,7 @@ class Simulation(object):
             for passengerEndLocation in endLocationToNumPassengers.keys():
                 passengerConnection = startLocation.getConnection(passengerEndLocation)
                 
-                if passengerConnection == None:
+                if passengerConnection is None:
                     raise ValueError("No known connection between: " + str(startLocation) + " and: " +\
                                      str(passengerEndLocation) + " specified in " + str(passengersOnTripFilePath))
                 

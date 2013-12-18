@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
 		# To see whether a plane is flying we just need to check
 		# if the log contains a trip.
-		if trip == None:
+		if trip is None:
 			print "Plane %s is not flying!" %(plane)
 		else:
 			print "Plane %s is flying on trip: %s!" %(plane, trip)
