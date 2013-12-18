@@ -1,40 +1,7 @@
 from __future__ import division
 
 from mokum import Simulation
-import pylab
-
-def plotFuel(simulation, fileName = 'fuel'):
-	"""
-	produces a plot of the fuel in the planes over the simulation with timesteps
-	of 1 minute.
-	"""
-
-	print "Plotting fuel, this might take a while depending on the size of the simulation."
-
-	planes = simulation.getPlanes()
-	planeToFuel = {plane : [] for plane in planes}
-	
-	# note: producing a simulationLog is expensive, so make that your outer loop.
-	for time in range(int(simulation.getEndTime())):
-		simulationLog = simulation.getSimulationLogAt(time)
-		planeToLog = simulationLog.getPlaneToLog()
-
-		for plane in planes:
-			planeToFuel[plane].append(planeToLog[plane].getFuel())
-
-	for plane in planes:
-		pylab.plot(range(len(planeToFuel[plane])), planeToFuel[plane], label = str(plane))
-
-	pylab.title("Fuel in planes over the course of the simulation.")
-	pylab.legend(loc = "upper right")
-	pylab.xlabel("Time (min)")
-	pylab.ylabel("Fuel (km)")
-	pylab.ylim(bottom = 0)
-	pylab.savefig(fileName)
-
-	print "Finished plotting fuel."
-
-	pylab.show()
+import mokumplotter as plotter
 
 if __name__ == "__main__":
 
@@ -47,5 +14,45 @@ if __name__ == "__main__":
 	planes = simulation.getPlanes() # all the planes in the simulation
 	connections = simulation.getConnections() # all the connections in the simulation
 	locations = simulation.getLocations() # all the locations in the simulation
+	
+	# ================================================================== #
+	#                                                                    #
+	#                         YOUR CODE GOES HERE!                       #
+	#                                                                    #
+	# ================================================================== #
 
-	plotFuel(simulation)
+
+
+
+	# ================================================================== #
+	#                                                                    #
+	#                              EXAMPLES!                             #
+	#                                                                    #
+	# ================================================================== #
+
+	# creates a plot of the fuel consumption of each plane saved in fuel.png
+	plotter.plotFuel(simulation) 
+
+	# creates a plot of the passenger kilometers made by each plane 
+	# saved in passengerkilometers.png
+	plotter.plotPassengerKilometers(simulation)
+
+
+	# Get the state of simulation after 100 minutes and 15 seconds:
+	simLog = simulation.getSimulationLogAt(100.25)
+
+	# Lets check what planes are flying at time 100.25.
+	# First for efficiency, lets get a dictionary with planes as key
+	# and their planeLogs as value
+	planeToLog = simLog.getPlaneToLog()
+	
+	# Now lets produce some results!
+	for plane in planes:
+		trip = planeToLog[plane].getTrip()
+
+		# To see whether a plane is flying we just need to check
+		# if the log contains a trip.
+		if planeToLog[plane].getTrip() == None:
+			print "Plane %s is not flying!" %(plane)
+		else:
+			print "Plane %s is flying on trip: %s!" %(plane, trip)
