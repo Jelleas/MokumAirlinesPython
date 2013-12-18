@@ -42,17 +42,13 @@ if __name__ == "__main__":
 	simLog = simulation.getSimulationLogAt(100.25)
 
 	# Lets check what planes are flying at time 100.25.
-	# First for efficiency, lets get a dictionary with planes as key
-	# and their planeLogs as value
-	planeToLog = simLog.getPlaneToLog()
-	
-	# Now lets produce some results!
-	for plane in planes:
-		trip = planeToLog[plane].getTrip()
+	for planeLog in simLog.getPlaneLogs():
+		trip = planeLog.getTrip()
+		plane = planeLog.getPlane()
 
 		# To see whether a plane is flying we just need to check
 		# if the log contains a trip.
-		if planeToLog[plane].getTrip() == None:
+		if trip == None:
 			print "Plane %s is not flying!" %(plane)
 		else:
 			print "Plane %s is flying on trip: %s!" %(plane, trip)
