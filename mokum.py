@@ -57,7 +57,7 @@ class Simulation(object):
     - A plane cannot be stalled in air to wait for the no fly zone to pass.
     """
     
-    def __init__(self):
+    def __init__(self, runPreSimulation = True):
         self.flightPlan = FlightPlan()
         self.startTime = defaultStartTime
         self.endTime = defaultEndTime
@@ -69,7 +69,8 @@ class Simulation(object):
         if self.home is None:
             raise ValueError("No home location set in config.txt.")
         
-        self._testPlanes() # mandatory test, as the simulation will not check for this.
+        if runPreSimulation:
+            self.preSimulation()
         
     def run(self):
         """
@@ -113,11 +114,21 @@ class Simulation(object):
     
     def getConnections(self):
         return self.flightPlan.getConnections()
+
+    def getConnectionsByStart(self, startLocation):
+        return self.flightPlan.getConnectionsByStart(startLocation)
+
+    def getConnectionsByEnd(self, endLocation):
+        return self.flightPlan.getConnectionsByEnd(endLocation)
     
     def getLocations(self):
         return self.flightPlan.getLocations()
-    
+
+    def getTrips(self):
+        return self.flightPlan.getTrips()
+
     def preSimulation(self):
+        self._testPlanes()
         self._testPassengers()
         self._testFuel()
         self._testTrips()
@@ -143,7 +154,7 @@ class Simulation(object):
                 if connectionToPassenger[connection] < 0:
                     numPas = connectionToPassenger[connection] + trip.getNumPassengersTo(connection.getEndLocation())
                     raise ValueError("Illegal passenger subtraction in connection: " + str(connection) +\
-                                      ", tried to subtract " + str(trip.getNumPassengers(connection)) +\
+                                      ", tried to subtract " + str(trip.getNumPassengersOn(connection)) +\
                                        " from " + str(numPas))
     
     def _testPlanes(self):
@@ -179,7 +190,7 @@ class Simulation(object):
                                           "  and tried to land at: " + str(endTime))
                      
                 if startTrip.getStartLocation() != endTrip.getEndLocation():
-                    raise ValueError("Startpoint: " + str(startTrip.getStartLocation()) + " or endpoint: " +\
+                    raise ValueError("Startpoint: " + str(startTrip.getStartLocation()) + " and endpoint: " +\
                                      str(endTrip.getEndLocation()) + " of plane: " + str(plane) +\
                                      " do not match.")
                 
@@ -198,7 +209,7 @@ class Simulation(object):
         for plane in self.flightPlan.getPlanes():
             fuel = plane.getFuelAt(self.startTime)
             
-            for trip in plane.getSortedTrips():
+            for trip in plane.getTrips():
                 fuel -= trip.getDistance()
                 
                 if fuel < 0:
@@ -227,7 +238,7 @@ class Simulation(object):
                 
                 for j in restTripIndexes:
                     startCheck, endCheck = tripStartEnd[j]
-                    if startCheck <= start <= endCheck or startCheck <= end <= endCheck:
+                    if (startCheck >= start > endCheck) or (startCheck < end <= endCheck) or (start < endCheck <= end):
                         raise ValueError("Trip collision occured with plane: " + str(plane))
     
     def _loadData(self):
@@ -457,7 +468,7 @@ class FlightPlan(object):
     def addConnections(self, connections):
         for connection in connections:
             self.addConnection(connection)
-    
+
     def addPlane(self, plane):
         if plane not in self.planes:
             self.planes.append(plane)
@@ -471,6 +482,12 @@ class FlightPlan(object):
     def getConnections(self):
         return self.connections
           
+    def getConnectionsByStart(self, startLocation):
+        return filter(lambda connection : connection.getStartLocation() == startLocation, self.connections)
+
+    def getConnectionsByEnd(self, endLocation):
+        return filter(lambda connection : connection.getEndLocation() == endLocation, self.connections)
+
     def getPlanes(self):
         return self.planes
     
@@ -478,7 +495,7 @@ class FlightPlan(object):
         return {con : con.getConnectionLogAt(time, self.planes) for con in self.connections}
     
     def getPlaneToLogAt(self, time):
-        return {plane : plane.getPlaneLogAtNew(time) for plane in self.planes}
+        return {plane : plane.getPlaneLogAt(time) for plane in self.planes}
 
     def getTrips(self):
         trips = []
@@ -504,9 +521,6 @@ class Plane(object):
     def __str__(self):
         return self.name
         
-    def setLocation(self, location):
-        self.location = location
-        
     def addTrip(self, trip):
         if trip.getTotalNumPassengers() > self.maxPassengers:
             raise ValueError("Plane: " + str(self) + " cannot carry more than " + str(self.maxPassengers) +\
@@ -515,23 +529,27 @@ class Plane(object):
         startTime = trip.getStartTime()
         self.trips[startTime] = trip
         
+    def removeTrip(self, trip):
+        startTime = trip.getStartTime()
+        if trip is self.trips[startTime]:
+            del self.trips[startTime]
+            return True
+        else:
+            return False
+
     def getCoordsAt(self, time):
-        return self.getPlaneLogAtNew(time).getCoords()
-        #return self.getPlaneLogAt(time).getCoords()
+        return self.getPlaneLogAt(time).getCoords()
     
     def getFuelAt(self, time):
-        return self.getPlaneLogAtNew(time).getFuel()
-        #return self.getPlaneLogAt(time).getFuel()
+        return self.getPlaneLogAt(time).getFuel()
         
     def getPassengersAt(self, time):
-        return self.getPlaneLogAtNew(time).getPassengers()
-        #return self.getPlaneLogAt(time).getPassengers()
+        return self.getPlaneLogAt(time).getPassengers()
     
     def getPassengerKilometersAt(self, time):
-        return self.getPlaneLogAtNew(time).getPassengerKilometers()
-        #return self.getPlaneLogAt(time).getPassengerKilometers()
+        return self.getPlaneLogAt(time).getPassengerKilometers()
     
-    def getPlaneLogAtNew(self, time):
+    def getPlaneLogAt(self, time):
         """
         Get a PlaneLog of this plane at time.
         """
@@ -670,11 +688,7 @@ class Plane(object):
         return self.maxFuel
             
     def getTrips(self):
-        return self.trips.values()
-    
-    def getSortedTrips(self):
-        startTimes = sorted(self.trips.keys())
-        return [self.trips[startTime] for startTime in startTimes]
+        return [self.trips[startTime] for startTime in sorted(self.trips)]
     
     def getName(self):
         return self.name
@@ -739,7 +753,10 @@ class PlaneLog(object):
     def getPassengerKilometers(self):
         return self.passengerKilometers
     
-    def getNumPassengers(self, connection):
+    def getNumPassengers(self):
+        return sum(self.passengers.values())
+
+    def getNumPassengersOn(self, connection):
         return self.passengers.get(connection, 0)
     
     def getNumPassengersTo(self, endLocation):
@@ -763,6 +780,9 @@ class Trip(object):
     def __str__(self):
         return "starttime: " + str(self.startTime) + ", " + str(self.connection)
         
+    def setRefuel(self, refuel):
+        self.refuel = bool(refuel)
+
     def getStartTime(self):
         return self.startTime
 
@@ -797,7 +817,7 @@ class Trip(object):
     def getPassengers(self):
         return self.passengers
     
-    def getNumPassengers(self, connection):
+    def getNumPassengersOn(self, connection):
         return self.passengers.get(connection, 0)
     
     def getNumPassengersTo(self, endLocation):
@@ -856,8 +876,10 @@ class Connection(object):
             for trip in plane.getTrips():
                 passengers = trip.getPassengers()
 
-                if trip.getStartTime() < time:
+                if trip.getStartTime() <= time:
                     potentialPassengers -= passengers.get(self, 0)
+                else:
+                    break
 
         return ConnectionLog(self, time, potentialPassengers)
 

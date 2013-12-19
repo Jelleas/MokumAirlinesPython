@@ -11,9 +11,12 @@ deviationY = -30 # deviation from y coordinate to image
 numTableRows = 10
 
 class SimulationGUI(tk.Frame):              
-    def __init__(self, simulation, master = None):
+    def __init__(self, simulation, image, master):
         tk.Frame.__init__(self, master)
         self.grid()
+
+        self.image = image
+
         self.simulation = simulation
         self.startTime = self.simulation.getStartTime()
         self.time = self.startTime
@@ -87,7 +90,7 @@ class SimulationGUI(tk.Frame):
         
         self.canvas = tk.Canvas(self, width = 450, height = 450)
         self.canvas.grid(row = 1, column = 0, columnspan = 5, rowspan = 1)
-        self.canvas.create_image(10, 10, image = image, anchor = 'nw')
+        self.canvas.create_image(10, 10, image = self.image, anchor = 'nw')
         
         self.timeEntry = TimeEntry(self.isPaused, startTime = self.startTime, endTime = self.endTime,
                                     master = self)
@@ -139,7 +142,7 @@ class TimeEntry(tk.Frame):
         self.time = self.startTime
         self.endTime = endTime
         self.isPaused = isPaused
-        self.timeStep = .1
+        self.timeStep = 1
         self._createTimeEntry()
         
     def _createTimeEntry(self):
@@ -450,7 +453,16 @@ class LocationTable(tk.Frame):
         self.currentLocationNum = locationNum
         self.currentLocation = self.locations[self.currentLocationNum]
         self.updateLocationTable(self.simulationLog)
-        
+
+def run(simulation):
+    master = tk.Tk()
+
+    image = tk.PhotoImage(file = "resources/europe.gif")
+    gui = SimulationGUI(simulation, image, master)
+    gui.master.title('Mokum Airlines')
+    gui.after(100, gui.run)
+    gui.start()
+
 if __name__ == "__main__":
     start = dt.datetime.now()
     simulation = Simulation()
@@ -462,10 +474,4 @@ if __name__ == "__main__":
     end = dt.datetime.now()
     print "Time taken over pre simulation", end - start
     
-    master = tk.Tk()
-
-    image = tk.PhotoImage(file = "resources/europe.gif")
-    gui = SimulationGUI(simulation, master = master)
-    gui.master.title('Mokum Airlines')
-    gui.after(100, gui.run)
-    gui.start()
+    run(simulation)
