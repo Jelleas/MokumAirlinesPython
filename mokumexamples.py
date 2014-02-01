@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
 	# For comparison lets see what passengerkilometers the plane makes before
 	# removing one of its trips. We can do that in two ways, either by creating
-	# the planelog for just this plane, or by creating a log of complete
+	# the planelog for just this plane, or by creating a log of the complete
 	# simulation. Both ways are shown below.
 
 	endTime = simulation.getEndTime()
@@ -101,13 +101,14 @@ if __name__ == "__main__":
 	# 2. a start time (in minutes)
 	# 3. a connection where the trip travels over
 	# 4. passengers, a dictionary with connections as keys and
-	# an integer indicating number of passengers
+	# an integer indicating number of passengers as value
 	# 5. a boolean refuel indicating whether the plane should refuel
 	# Lets go and get all that. 
 
 	# First a unique name, I suggest you stick
-	# to some convention for instance just numbering your trips like so,
-	# then we can get a name like so:
+	# to some convention for instance just numbering your trips like so:
+	# trip1, trip2, trip3 etc.
+	# Then we can get a name like so:
 	name = "trip" + str(len(simulation.getTrips()) + 1)
 
 	# A starttime, difficult as our plane already has some trips
