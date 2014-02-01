@@ -127,6 +127,28 @@ class Simulation(object):
     def getTrips(self):
         return self.flightPlan.getTrips()
 
+    def saveToFiles(self):
+        tripsFile = open(tripsFilePath, 'w')
+        passengersOnTripFile = open(passengersOnTripFilePath, 'w')
+
+        for plane in self.getPlanes():
+            for trip in plane.getTrips():
+                tripsFile.write("%s,%f,%s,%s,%s,%d\n"
+                    %(trip.getName(), trip.getStartTime(), plane.getName(),
+                     trip.getStartLocation(), trip.getEndLocation(), trip.getRefuel()))
+
+                passengers = trip.getPassengers()
+                for connection in passengers:
+                    passengersOnTripFile.write("%s,%d,%s\n" 
+                        %(trip.getName(), passengers[connection], connection.getEndLocation()))
+
+        tripsFile.close()
+        passengersOnTripFile.close()
+
+    def clearFiles(self):
+        open(tripsFilePath, 'w').close()
+        open(passengersOnTripFilePath, 'w').close()
+
     def preSimulation(self):
         self._testPlanes()
         self._testPassengers()
@@ -144,7 +166,7 @@ class Simulation(object):
             for connection in connections:
                 connectionToPassenger[connection] = connection.getPotentialPassengers()
         
-        # calculate number of passengers taken from connections
+        # calculate number of passengers taken from connections.
         for trip in trips:
             connections = trip.getPassengerConnections()
             
@@ -241,6 +263,14 @@ class Simulation(object):
                     if (startCheck >= start > endCheck) or (startCheck < end <= endCheck) or (start < endCheck <= end):
                         raise ValueError("Trip collision occured with plane: " + str(plane))
     
+    def _removeEmptyLinesAtEnd(self, data):
+        """ Helper function, removes [''] entries at the end of data which should
+        be a list of lists. """
+        while data[-1] == ['']:
+            del data[-1]
+
+        return data
+
     def _loadData(self):
         locationsFile = open(locationsFilePath)
         self._interpretLocations(locationsFile.read())
@@ -267,7 +297,8 @@ class Simulation(object):
         passengersOnTripFile.close()
     
     def _interpretConfig(self, configString):
-        configList = [line.split("=") for line in configString.split("\n")]
+        configList = self._removeEmptyLinesAtEnd([line.split("=") for line in configString.split("\n")])
+
         for setting, value in configList:
             if setting == "starttime":
                 self.startTime = int(value)
@@ -289,12 +320,12 @@ class Simulation(object):
                     raise ValueError("Unknown location: " + value + " set as home in " + configFilePath)
            
     def _interpretLocations(self, locationsString):
-        locationsList = [line.split(",") for line in locationsString.split("\n")]
+        locationsList = self._removeEmptyLinesAtEnd([line.split(",") for line in locationsString.split("\n")])
         self.flightPlan.addLocations([Location(name, locationId, (x, y)) for x, y, locationId, name in locationsList])
               
     def _interpretConnections(self, connectionsString, passengersString):
-        connectionsList = [line.split(',') for line in connectionsString.split("\n")]
-        passengersList = [line.split(',') for line in passengersString.split("\n")]
+        connectionsList = self._removeEmptyLinesAtEnd([line.split(',') for line in connectionsString.split("\n")])
+        passengersList = self._removeEmptyLinesAtEnd([line.split(',') for line in passengersString.split("\n")])
         
         idToLocation = {}
         for location in self.flightPlan.getLocations():
@@ -310,15 +341,17 @@ class Simulation(object):
                     startLocation.addConnection(connection)
 
     def _interpretPlanes(self, planesString):
-        planesList = [line.split(',') for line in planesString.split("\n")]
+        planesList = self._removeEmptyLinesAtEnd([line.split(',') for line in planesString.split("\n")])
+        
         planes = [Plane(name, maxPassengers, planeType, self.home, speed, flightRange)\
                                     for name, maxPassengers, planeType, speed, flightRange in planesList]
         self.flightPlan.addPlanes(planes)
 
     def _interpretTrips(self, tripString, passengersOnTripString):
-        tripsList = [line.split(',') for line in tripString.split("\n")]
-        passengersOnTripList = [line.split(',') for line in passengersOnTripString.split("\n")]
-        
+        tripsList = self._removeEmptyLinesAtEnd([line.split(',') for line in tripString.split("\n")])
+    
+        passengersOnTripList = self._removeEmptyLinesAtEnd([line.split(',') for line in passengersOnTripString.split("\n")])
+    
         nameToPlane = {}
         for plane in self.flightPlan.getPlanes():
             nameToPlane[plane.getName()] = plane
@@ -782,6 +815,9 @@ class Trip(object):
         
     def setRefuel(self, refuel):
         self.refuel = bool(refuel)
+
+    def getName(self):
+        return self.name
 
     def getStartTime(self):
         return self.startTime

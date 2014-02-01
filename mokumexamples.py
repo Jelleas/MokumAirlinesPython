@@ -23,7 +23,7 @@ if __name__ == "__main__":
 	# Get the state of simulation after 100 minutes and 15 seconds:
 	simLog = simulation.getSimulationLogAt(100.25)
 
-	# Lets check what planes are flying at time 100.25.
+	# Lets check which planes are flying at time 100.25.
 	for planeLog in simLog.getPlaneLogs():
 		trip = planeLog.getTrip()
 		plane = planeLog.getPlane()
@@ -108,7 +108,7 @@ if __name__ == "__main__":
 	# First a unique name, I suggest you stick
 	# to some convention for instance just numbering your trips like so,
 	# then we can get a name like so:
-	name = "trip" + str(len(simulation.getTrips()))
+	name = "trip" + str(len(simulation.getTrips()) + 1)
 
 	# A starttime, difficult as our plane already has some trips
 	# planned, so lets calculate when the last one ends, and start
@@ -157,7 +157,7 @@ if __name__ == "__main__":
 	# willing to travel. Okay lets fix this. For this we need a 
 	# connectionLog. As planes fly over connections, less and less
 	# passengers are willing to fly. So we need this log.
-	# Note: the this connection log needs all the planes, for it to
+	# Note: the connection log needs all the planes, for it to
 	# create a correct log.
 	conLog = connection.getConnectionLogAt(startTime, planes)
 
@@ -188,6 +188,7 @@ if __name__ == "__main__":
 
 	# Lets add this to the plane, and see if all is still good.
 	plane.addTrip(trip)
+
 	try:
 		simulation.preSimulation()
 	except ValueError, e:
@@ -195,9 +196,17 @@ if __name__ == "__main__":
 
 	# Yes, we need another trip, as the end location does not match
 	# the start location anymore. But hey, it's just a proof of concept!
-	# So just removing the trip we added.
+	# So lets just remove the trip we added.
 	plane.removeTrip(trip)
-
+	
+	# If our modified flightplan turned out be a success we can save it by calling:
+	#simulation.saveToFiles()
+	# Please note that this will overwrite the existing files: trips.txt and 
+	# passengersontrip.txt (make a backup!)
+	
+	# If you want to make a fresh start you can call:
+	#simulation.clearFiles()
+	# This will wipe trips.txt and passengersontrip.txt
 
 	# Okay, well. We need some results, don't we? Lets plot stuff!
 	# Note: I commented this code, as it takes some time depending 
@@ -216,7 +225,6 @@ if __name__ == "__main__":
 	# Note: I commented this code, as you would get a frame on your screen
 	# every time you run these examples (and it kind of spoils it).
 	#gui.run(simulation)
-
 
 
 	# Good Luck!
